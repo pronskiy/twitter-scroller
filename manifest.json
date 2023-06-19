@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+
+  "name": "Twitter scroller",
+  "description": "This extension demonstrates a browser action with kittens.",
+  "version": "0.1",
+  "content_scripts": [
+    {
+      "matches": ["https://twitter.com/*"],
+      "run_at": "document_end",
+      "js": ["script.js"]
+    }
+  ],
+  "commands": {
+    "scroll": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Scroll twitter feed until liked found"
+    }
+  }
+}
