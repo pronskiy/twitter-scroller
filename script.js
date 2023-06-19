@@ -1,5 +1,7 @@
 console.log('script.js')
 
+const last_read_tweet = '/naval/status/1668667975145074691' 
+
 const addToSkip = document.createElement("a")
 addToSkip.textContent = 'Skip'
 addToSkip.setAttribute('href', '#')
@@ -13,6 +15,14 @@ function scrollTwitterTimeline(){
             top: document.body.scrollHeight,
             behavior: 'smooth',
         });
+        
+        let read = document.querySelector(`a[href="${last_read_tweet}"]`);
+        if (read) {
+            clearInterval(intervalId);
+            intervalId = null;
+            read.scrollIntoView({behavior: 'smooth'})
+            return;
+        }
 
         let liked = document.querySelector('div[aria-label$="Liked"]');
         if (liked) {
