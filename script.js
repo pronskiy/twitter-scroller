@@ -1,6 +1,6 @@
 console.log('script.js')
 
-const last_read_tweet = '/naval/status/1668667975145074691' 
+const last_read_tweet = '/exakat/status/1669236975218442240' 
 
 const addToSkip = document.createElement("a")
 addToSkip.textContent = 'Skip'
@@ -27,14 +27,14 @@ function scrollTwitterTimeline(){
         let liked = document.querySelector('div[aria-label$="Liked"]');
         if (liked) {
             // let skipId = liked.getAttribute('id');
-            let skipId = liked.closest('article').querySelector('a:has(time)').getAttribute('href');  
+            let skipId = liked.closest('article').querySelector('a:has(time)').getAttribute('href');
             if (!isSkipped(skipId)) {
                 clearInterval(intervalId);
                 intervalId = null;
                 liked.scrollIntoView({behavior: 'smooth'})
                 let cloneNode = addToSkip.cloneNode(true);
                 cloneNode.setAttribute('data-id', skipId)
-                liked.appendChild(cloneNode)
+                liked.closest('[role="group"]').appendChild(cloneNode)
             }
         }
     }, 1000);  // Scroll every 1000 milliseconds
