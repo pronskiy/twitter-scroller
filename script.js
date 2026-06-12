@@ -157,6 +157,13 @@
         }
     })
 
+    // --- #8: chrome.commands shortcut (Cmd+Shift+Y on Mac) relayed from background.js ---
+    chrome.runtime.onMessage.addListener(function (message) {
+        if (message === 'toggle-scroll') {
+            toggleScrolling();
+        }
+    });
+
     function run_twitter_scroller()
     {
         console.log('script.js')
