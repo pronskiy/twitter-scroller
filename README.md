@@ -25,8 +25,11 @@ Tweets can be hidden by two filters, configured in the extension options
 to a one-line `filtered: …` stub in the feed; click the stub to reveal the tweet. Changes apply
 to the open feed immediately — no reload needed. Your bookmarked position tweet is never hidden.
 
+**Links only** — a checkbox that hides every tweet not containing a link (external URL or link
+card). Checked before the other filters.
+
 **Regexp filters** — one pattern per line, matched case-insensitively against tweet text
-(e.g. `giveaway` or `crypto ?bro`). Instant and free; checked first.
+(e.g. `giveaway` or `crypto ?bro`). Instant and free.
 
 **LLM filter (optional)** — tweets that pass the regexps are classified by an LLM via
 [OpenRouter](https://openrouter.ai) against rubrics you write in plain language, one per line as

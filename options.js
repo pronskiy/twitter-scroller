@@ -7,10 +7,13 @@
     const rubricsEl = document.getElementById('rubrics');
     const status = document.getElementById('status');
 
-    chrome.storage.sync.get({ filters: [], model: '', rubrics: '' }, function (items) {
+    const linksOnlyEl = document.getElementById('links-only');
+
+    chrome.storage.sync.get({ filters: [], model: '', rubrics: '', links_only: false }, function (items) {
         filtersEl.value = items.filters.join('\n');
         modelEl.value = items.model;
         rubricsEl.value = items.rubrics;
+        linksOnlyEl.checked = items.links_only;
     });
 
     chrome.storage.local.get({ openrouter_key: '' }, function (items) {
@@ -54,6 +57,7 @@
                 filters: lines,
                 model: modelEl.value.trim(),
                 rubrics: rubricsEl.value.trim(),
+                links_only: linksOnlyEl.checked,
             }, function () {
                 status.textContent = 'Saved';
                 status.className = 'ok';

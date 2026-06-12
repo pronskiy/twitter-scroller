@@ -129,6 +129,7 @@
     // --- #10: LLM noise filter (OpenRouter, via background.js) ---
     const verdict_cache_key = 'ts_llm_verdicts'
     let llmEnabled = false
+    let linksOnly = false
     let pendingBatch = []   // [{id, text}] awaiting classification
     let pendingById = {}    // ids already queued or in flight
 
@@ -140,8 +141,9 @@
         });
     }
 
-    chrome.storage.sync.get({ filters: [] }, function (items) {
+    chrome.storage.sync.get({ filters: [], links_only: false }, function (items) {
         compileFilters(items.filters);
+        linksOnly = items.links_only;
     });
     updateLlmEnabled();
 
@@ -149,12 +151,13 @@
         if (area === 'local' && changes.openrouter_key) updateLlmEnabled();
         if (area !== 'sync') return;
         if (changes.filters) compileFilters(changes.filters.newValue);
+        if (changes.links_only) linksOnly = changes.links_only.newValue;
         if (changes.model || changes.rubrics) {
             updateLlmEnabled();
             // Rubric or model changes make cached verdicts stale.
             localStorage.removeItem(verdict_cache_key);
         }
-        if (changes.filters || changes.model || changes.rubrics) {
+        if (changes.filters || changes.model || changes.rubrics || changes.links_only) {
             // Re-evaluate the whole feed: release collapsed tweets, clear scan marks.
             document.querySelectorAll('.skrl-filter-stub').forEach(restoreFiltered);
             document.querySelectorAll('article[data-skrl-checked]').forEach(function (article) {
@@ -252,12 +255,18 @@
     // not yet checked. Once a stub is clicked open, the mark keeps the
     // tweet from re-collapsing until it leaves the DOM or filters change.
     setInterval(function () {
-        if (!compiledFilters.length && !llmEnabled) return;
+        if (!compiledFilters.length && !llmEnabled && !linksOnly) return;
         let verdicts = llmEnabled ? getVerdicts() : {};
         document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {
             article.setAttribute('data-skrl-checked', '1');
             // Never hide the reading-position marker the scroll loop stops at.
             if (article.querySelector('button[data-testid="removeBookmark"]')) return;
+            // External links and link cards have absolute hrefs; everything
+            // internal (mentions, hashtags, permalinks, media) is relative.
+            if (linksOnly && !article.querySelector('a[href^="http"]')) {
+                collapseArticle(article, 'no link');
+                return;
+            }
             let text = tweetText(article);
             if (!text) return;
             let matched = matchFilters(text);
