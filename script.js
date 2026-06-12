@@ -112,6 +112,91 @@
         }
     });
 
+    // --- #9: Regexp noise filter — patterns from chrome.storage.sync (edited via options page) ---
+    let compiledFilters = []
+
+    function compileFilters(patterns) {
+        compiledFilters = [];
+        (patterns ?? []).forEach(function (pattern) {
+            try {
+                compiledFilters.push(new RegExp(pattern, 'i'));
+            } catch (err) {
+                console.warn('[Skrl] Skipping invalid filter pattern:', pattern, err.message);
+            }
+        });
+    }
+
+    chrome.storage.sync.get({ filters: [] }, function (items) {
+        compileFilters(items.filters);
+    });
+
+    chrome.storage.onChanged.addListener(function (changes, area) {
+        if (area !== 'sync' || !changes.filters) return;
+        compileFilters(changes.filters.newValue);
+        // Re-evaluate the whole feed: release collapsed tweets, clear scan marks.
+        document.querySelectorAll('.skrl-filter-stub').forEach(restoreFiltered);
+        document.querySelectorAll('article[data-skrl-checked]').forEach(function (article) {
+            article.removeAttribute('data-skrl-checked');
+        });
+    });
+
+    // Single decision point for "is this tweet noise" — future filter types
+    // (beyond the regexp list) extend this function. Returns the matched
+    // pattern, or null to keep the tweet.
+    function matchFilters(article) {
+        let texts = article.querySelectorAll('div[data-testid="tweetText"]');
+        if (!texts.length) return null;
+        let text = Array.prototype.map.call(texts, function (el) {
+            return el.innerText;
+        }).join('\n');
+        for (const re of compiledFilters) {
+            if (re.test(text)) return re;
+        }
+        return null;
+    }
+
+    function collapseArticle(article, matched) {
+        const stub = document.createElement('a')
+        stub.setAttribute('href', '#')
+        stub.setAttribute('class', 'skrl-filter-stub')
+        stub.setAttribute('style', 'display: block; padding: 6px 16px; color: rgb(113, 118, 123); font-size: 13px; text-decoration: none;')
+        stub.textContent = 'filtered: ' + matched + ' — show'
+        article.style.display = 'none';
+        article.before(stub)
+    }
+
+    function restoreFiltered(stub) {
+        let article = stub.nextElementSibling;
+        if (article && article.tagName === 'ARTICLE') {
+            article.style.display = '';
+        }
+        stub.remove();
+    }
+
+    document.addEventListener('click', function (e) {
+        let stub = e.target.closest('.skrl-filter-stub');
+        if (stub) {
+            e.preventDefault();
+            restoreFiltered(stub);
+        }
+    });
+
+    // Tweets virtualize in/out of the DOM while scrolling — poll for ones
+    // not yet checked. Once a stub is clicked open, the mark keeps the
+    // tweet from re-collapsing until it leaves the DOM or filters change.
+    setInterval(function () {
+        if (!compiledFilters.length) return;
+        document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {
+            article.setAttribute('data-skrl-checked', '1');
+            // Never hide the reading-position marker the scroll loop stops at.
+            if (article.querySelector('button[data-testid="removeBookmark"]')) return;
+            let matched = matchFilters(article);
+            if (matched) {
+                collapseArticle(article, matched);
+            }
+        });
+    }, 1500);
+
     function run_twitter_scroller()
     {
         console.log('script.js')

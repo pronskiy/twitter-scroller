@@ -17,3 +17,13 @@ It auto-scrolls your X feed down to the spot where you stopped reading last time
 - Read upward. When you stop reading, **bookmark** the last tweet you read (the native bookmark icon in the tweet's action bar) — that's where scrolling will stop next time.
 
 Tip: to keep your bookmarks tidy, you can remove the previous position bookmark after setting a new one. Note that if you bookmark tweets you haven't read yet, scrolling will stop at the newest bookmark rather than your actual reading position.
+
+## Filtering noise
+
+You can hide tweets matching a list of regular expressions:
+
+- Open the extension options (chrome://extensions → Twitter scroller → Details → Extension options).
+- Add one pattern per line (matched case-insensitively against tweet text, e.g. `giveaway` or `crypto ?bro`) and press Save.
+- Matching tweets collapse to a one-line `filtered: /…/` stub in the feed; click the stub to reveal the tweet.
+
+Changes apply to the open feed immediately — no reload needed. Your bookmarked position tweet is never hidden.

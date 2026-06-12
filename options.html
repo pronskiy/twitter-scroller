@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Twitter Scroller options</title>
+    <style>
+        body { font-family: system-ui, sans-serif; margin: 16px; min-width: 380px; }
+        textarea { width: 100%; height: 180px; font-family: monospace; box-sizing: border-box; }
+        .hint { color: #555; font-size: 13px; }
+        #status { margin-left: 8px; font-size: 13px; }
+        #status.error { color: rgb(244, 33, 46); }
+        #status.ok { color: rgb(0, 186, 124); }
+    </style>
+</head>
+<body>
+    <h2>Noise filters</h2>
+    <p class="hint">One regular expression per line, matched case-insensitively against tweet text.
+        Matching tweets collapse to a one-line stub in the feed; click the stub to reveal the tweet.</p>
+    <textarea id="filters" placeholder="giveaway&#10;crypto ?bro"></textarea>
+    <div>
+        <button id="save">Save</button>
+        <span id="status"></span>
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>
