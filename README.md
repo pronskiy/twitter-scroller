@@ -1,6 +1,6 @@
 Chrome extension to "emulate" Tweetbot feed behavior.
 
-It scrolls your feed until the last (first found) liked tweet. Sort of to try to find the point in the feed where you stopped the last time.
+It auto-scrolls your X feed down to the spot where you stopped reading last time, so you can read upward into the newer tweets. Your reading position is marked with X's own bookmarks — no extra accounts, no extension storage.
 
 ## Installation
 
@@ -11,8 +11,9 @@ It scrolls your feed until the last (first found) liked tweet. Sort of to try to
 
 ## Usage
 
-- Go to your Twitter [home](https://twitter.com/home) page.
-- Press **Ctrl+Shift+Y**
-- See the feed scrolling
+- Go to your X [home](https://x.com/home) page.
+- Press **Ctrl+Shift+Y** (or **Cmd+Shift+Y** on Mac, or click the **Skrl** button next to the compose button).
+- The feed scrolls down and stops at your most recent bookmarked tweet.
+- Read upward. When you stop reading, **bookmark** the last tweet you read (the native bookmark icon in the tweet's action bar) — that's where scrolling will stop next time.
 
-If you'd like to scroll further when the scrolling stopped, you need to add a found liked tweet to a skipped list. Press the Skip button on it. Then press **Ctrl+Shift+Y** to continue scrolling again.
+Tip: to keep your bookmarks tidy, you can remove the previous position bookmark after setting a new one. Note that if you bookmark tweets you haven't read yet, scrolling will stop at the newest bookmark rather than your actual reading position.

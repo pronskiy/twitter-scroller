@@ -6,19 +6,12 @@
         'a[aria-label="Compose a post"]'
     ];
 
-    const last_read_tweet = '/exakat/status/1669236975218442240'
-    const storage_key = 'ts_skipped'
     const MAX_SCROLL_ITERATIONS = 60
 
     // --- #1: Shared state at module scope — SPA re-init must not create a second copy ---
     let intervalId = null
     let scrollIterations = 0
     let skrl = null // current Skrl button; recreated on SPA re-init
-
-    const addToSkip = document.createElement("a")
-    addToSkip.textContent = 'Skip'
-    addToSkip.setAttribute('href', '#')
-    addToSkip.setAttribute('class', 'ts_add-to-skip')
 
     // --- #2: Wait for compose button instead of fixed 2s delay ---
     function waitForElement(selectors, timeout) {
@@ -88,74 +81,29 @@
                 behavior: 'smooth',
             });
 
-            let read = document.querySelector(`a[href="${last_read_tweet}"]`);
-            if (read) {
+            // Bookmarks are the reading-position markers: the first bookmarked
+            // tweet found while scrolling down is the newest one.
+            let bookmarked = document.querySelector('button[data-testid="removeBookmark"]');
+            if (bookmarked) {
                 stopScrolling();
-                read.scrollIntoView({behavior: 'smooth'})
-                return;
-            }
-
-            let liked = document.querySelector('div[aria-label~="Liked,"]');
-            if (liked) {
-                // Permalink lookup can fail when Twitter changes markup — stop anyway,
-                // just without offering Skip.
-                let article = liked.closest('article');
-                let permalink = article && article.querySelector('a:has(time)');
-                let skipId = permalink && permalink.getAttribute('href');
-                if (!skipId || !isSkipped(skipId)) {
-                    stopScrolling();
-                    liked.scrollIntoView({behavior: 'smooth'})
-                    let group = liked.closest('[role="group"]');
-                    if (skipId && group) {
-                        let cloneNode = addToSkip.cloneNode(true);
-                        cloneNode.setAttribute('data-id', skipId)
-                        group.appendChild(cloneNode)
-                    }
-                    setTimeout(function () {
-                        window.scrollBy({
-                            top: -300,
-                            behavior: "smooth",
-                        })
-                    }, 1000)
-
-                }
+                let article = bookmarked.closest('article');
+                (article || bookmarked).scrollIntoView({behavior: 'smooth'})
+                setTimeout(function () {
+                    window.scrollBy({
+                        top: -300,
+                        behavior: "smooth",
+                    })
+                }, 1000)
             }
         }, 1000 + Math.floor(Math.random() * 200))
     }
 
-    // --- #7: Cap skip list at 200 entries ---
-    function addToSkipped(id) {
-        if (!id) return;
-        let skipped = JSON.parse(localStorage.getItem(storage_key)) ?? [];
-        skipped.push(id)
-        if (skipped.length > 200) {
-            skipped = skipped.slice(-200);
-        }
-        localStorage.setItem(storage_key, JSON.stringify(skipped))
-    }
-
-    function isSkipped(id) {
-        let skipped = JSON.parse(localStorage.getItem(storage_key)) ?? [];
-
-        return skipped.includes(id);
-    }
-
     // --- #1: Document-level listeners registered once; SPA re-init only re-creates the button ---
     document.addEventListener('keyup', function (event) {
-        console.log('keyup')
         if (event.ctrlKey && event.shiftKey && (event.key === 'Y' || event.key === 'Н')) {
             toggleScrolling();
         }
     });
-
-    document.addEventListener('click', e => {
-        console.log('click')
-        if (e.target.closest('.ts_add-to-skip')) {
-            e.preventDefault();
-            let skipId = e.target.getAttribute('data-id')
-            addToSkipped(skipId)
-        }
-    })
 
     // --- #8: chrome.commands shortcut (Cmd+Shift+Y on Mac) relayed from background.js ---
     chrome.runtime.onMessage.addListener(function (message) {
