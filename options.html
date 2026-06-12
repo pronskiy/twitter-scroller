@@ -4,20 +4,45 @@
     <meta charset="utf-8">
     <title>Twitter Scroller options</title>
     <style>
-        body { font-family: system-ui, sans-serif; margin: 16px; min-width: 380px; }
-        textarea { width: 100%; height: 180px; font-family: monospace; box-sizing: border-box; }
-        .hint { color: #555; font-size: 13px; }
+        body { font-family: system-ui, sans-serif; margin: 16px; min-width: 420px; }
+        h2 { margin-top: 24px; }
+        h2:first-child { margin-top: 0; }
+        textarea, input[type="text"], input[type="password"] { width: 100%; box-sizing: border-box; font-family: monospace; }
+        textarea { height: 140px; }
+        label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: 14px; }
+        .hint { color: #555; font-size: 13px; margin: 4px 0; }
+        #save-row { margin-top: 16px; }
         #status { margin-left: 8px; font-size: 13px; }
         #status.error { color: rgb(244, 33, 46); }
         #status.ok { color: rgb(0, 186, 124); }
     </style>
 </head>
 <body>
-    <h2>Noise filters</h2>
+    <h2>Regexp filters</h2>
     <p class="hint">One regular expression per line, matched case-insensitively against tweet text.
-        Matching tweets collapse to a one-line stub in the feed; click the stub to reveal the tweet.</p>
+        Matching tweets collapse to a one-line stub in the feed; click the stub to reveal the tweet.
+        Instant and free — checked before the LLM filter.</p>
     <textarea id="filters" placeholder="giveaway&#10;crypto ?bro"></textarea>
-    <div>
+
+    <h2>LLM filter (OpenRouter)</h2>
+    <p class="hint">Tweets that pass the regexps are classified against the rubrics below by an
+        LLM via <a href="https://openrouter.ai" target="_blank">OpenRouter</a>. Leave any field
+        empty to disable. Note: tweet text is sent to OpenRouter and the model's provider.</p>
+
+    <label for="openrouter-key">OpenRouter API key</label>
+    <input type="password" id="openrouter-key" placeholder="sk-or-...">
+
+    <label for="model">Model</label>
+    <input type="text" id="model" list="model-list" placeholder="e.g. a fast, cheap model from openrouter.ai/models">
+    <datalist id="model-list"></datalist>
+    <p class="hint" id="model-hint">Type to search; any OpenRouter model ID is accepted.</p>
+
+    <label for="rubrics">Filter rubrics</label>
+    <p class="hint">One rule per line as <code>label: what to filter</code>. The label is shown
+        on collapsed tweets. Example: <code>politics: elections, politicians, geopolitics, culture war</code></p>
+    <textarea id="rubrics" placeholder="politics: elections, politicians, geopolitics, culture-war outrage&#10;engagement bait: rage bait, follow-for-follow, vague hype threads"></textarea>
+
+    <div id="save-row">
         <button id="save">Save</button>
         <span id="status"></span>
     </div>

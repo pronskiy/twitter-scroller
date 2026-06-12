@@ -15,6 +15,7 @@
     "service_worker": "background.js"
   },
   "permissions": ["storage"],
+  "host_permissions": ["https://openrouter.ai/*"],
   "options_ui": {
     "page": "options.html"
   },

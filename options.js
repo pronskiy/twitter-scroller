@@ -1,15 +1,40 @@
 (function () {
     'use strict';
 
-    const textarea = document.getElementById('filters');
+    const filtersEl = document.getElementById('filters');
+    const keyEl = document.getElementById('openrouter-key');
+    const modelEl = document.getElementById('model');
+    const rubricsEl = document.getElementById('rubrics');
     const status = document.getElementById('status');
 
-    chrome.storage.sync.get({ filters: [] }, function (items) {
-        textarea.value = items.filters.join('\n');
+    chrome.storage.sync.get({ filters: [], model: '', rubrics: '' }, function (items) {
+        filtersEl.value = items.filters.join('\n');
+        modelEl.value = items.model;
+        rubricsEl.value = items.rubrics;
     });
 
+    chrome.storage.local.get({ openrouter_key: '' }, function (items) {
+        keyEl.value = items.openrouter_key;
+    });
+
+    // Populate the model picker from OpenRouter's public model list.
+    fetch('https://openrouter.ai/api/v1/models')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            const list = document.getElementById('model-list');
+            (data.data ?? []).forEach(function (m) {
+                const option = document.createElement('option');
+                option.value = m.id;
+                list.appendChild(option);
+            });
+        })
+        .catch(function () {
+            document.getElementById('model-hint').textContent =
+                'Could not load the model list — paste any model ID from openrouter.ai/models.';
+        });
+
     document.getElementById('save').addEventListener('click', function () {
-        const lines = textarea.value
+        const lines = filtersEl.value
             .split('\n')
             .map(function (line) { return line.trim(); })
             .filter(function (line) { return line !== ''; });
@@ -24,13 +49,19 @@
             }
         }
 
-        chrome.storage.sync.set({ filters: lines }, function () {
-            status.textContent = 'Saved (' + lines.length + ' pattern' + (lines.length === 1 ? '' : 's') + ')';
-            status.className = 'ok';
-            setTimeout(function () {
-                status.textContent = '';
-                status.className = '';
-            }, 2000);
+        chrome.storage.local.set({ openrouter_key: keyEl.value.trim() }, function () {
+            chrome.storage.sync.set({
+                filters: lines,
+                model: modelEl.value.trim(),
+                rubrics: rubricsEl.value.trim(),
+            }, function () {
+                status.textContent = 'Saved';
+                status.className = 'ok';
+                setTimeout(function () {
+                    status.textContent = '';
+                    status.className = '';
+                }, 2000);
+            });
         });
     });
 })();

@@ -126,33 +126,100 @@
         });
     }
 
+    // --- #10: LLM noise filter (OpenRouter, via background.js) ---
+    const verdict_cache_key = 'ts_llm_verdicts'
+    let llmEnabled = false
+    let pendingBatch = []   // [{id, text}] awaiting classification
+    let pendingById = {}    // ids already queued or in flight
+
+    function updateLlmEnabled() {
+        chrome.storage.sync.get({ model: '', rubrics: '' }, function (s) {
+            chrome.storage.local.get({ openrouter_key: '' }, function (l) {
+                llmEnabled = Boolean(s.model && s.rubrics.trim() && l.openrouter_key);
+            });
+        });
+    }
+
     chrome.storage.sync.get({ filters: [] }, function (items) {
         compileFilters(items.filters);
     });
+    updateLlmEnabled();
 
     chrome.storage.onChanged.addListener(function (changes, area) {
-        if (area !== 'sync' || !changes.filters) return;
-        compileFilters(changes.filters.newValue);
-        // Re-evaluate the whole feed: release collapsed tweets, clear scan marks.
-        document.querySelectorAll('.skrl-filter-stub').forEach(restoreFiltered);
-        document.querySelectorAll('article[data-skrl-checked]').forEach(function (article) {
-            article.removeAttribute('data-skrl-checked');
-        });
+        if (area === 'local' && changes.openrouter_key) updateLlmEnabled();
+        if (area !== 'sync') return;
+        if (changes.filters) compileFilters(changes.filters.newValue);
+        if (changes.model || changes.rubrics) {
+            updateLlmEnabled();
+            // Rubric or model changes make cached verdicts stale.
+            localStorage.removeItem(verdict_cache_key);
+        }
+        if (changes.filters || changes.model || changes.rubrics) {
+            // Re-evaluate the whole feed: release collapsed tweets, clear scan marks.
+            document.querySelectorAll('.skrl-filter-stub').forEach(restoreFiltered);
+            document.querySelectorAll('article[data-skrl-checked]').forEach(function (article) {
+                article.removeAttribute('data-skrl-checked');
+            });
+        }
     });
 
-    // Single decision point for "is this tweet noise" — future filter types
-    // (beyond the regexp list) extend this function. Returns the matched
-    // pattern, or null to keep the tweet.
-    function matchFilters(article) {
+    function tweetText(article) {
         let texts = article.querySelectorAll('div[data-testid="tweetText"]');
         if (!texts.length) return null;
-        let text = Array.prototype.map.call(texts, function (el) {
+        return Array.prototype.map.call(texts, function (el) {
             return el.innerText;
         }).join('\n');
+    }
+
+    function tweetPermalink(article) {
+        let permalink = article.querySelector('a:has(time)');
+        return permalink && permalink.getAttribute('href');
+    }
+
+    // Cheap, instant first pass. Returns the matched pattern, or null.
+    function matchFilters(text) {
         for (const re of compiledFilters) {
             if (re.test(text)) return re;
         }
         return null;
+    }
+
+    function getVerdicts() {
+        return JSON.parse(localStorage.getItem(verdict_cache_key)) ?? {};
+    }
+
+    function cacheVerdict(id, label) {
+        let verdicts = getVerdicts();
+        verdicts[id] = label;
+        let keys = Object.keys(verdicts);
+        if (keys.length > 1000) {
+            keys.slice(0, keys.length - 1000).forEach(function (k) { delete verdicts[k]; });
+        }
+        localStorage.setItem(verdict_cache_key, JSON.stringify(verdicts))
+    }
+
+    function flushPendingBatch() {
+        if (!pendingBatch.length) return;
+        const batch = pendingBatch.splice(0, 20);
+        chrome.runtime.sendMessage({ type: 'classify', tweets: batch }, function (response) {
+            // Fail open on any error: unqueue so recreated tweets can retry.
+            if (chrome.runtime.lastError || !response || !response.verdicts) {
+                batch.forEach(function (t) { delete pendingById[t.id]; });
+                return;
+            }
+            batch.forEach(function (t) {
+                delete pendingById[t.id];
+                let label = response.verdicts[t.id] ?? null;
+                cacheVerdict(t.id, label);
+                if (label) {
+                    let anchor = document.querySelector('a[href="' + t.id + '"]');
+                    let article = anchor && anchor.closest('article');
+                    if (article && article.style.display !== 'none') {
+                        collapseArticle(article, label);
+                    }
+                }
+            });
+        });
     }
 
     function collapseArticle(article, matched) {
@@ -185,16 +252,30 @@
     // not yet checked. Once a stub is clicked open, the mark keeps the
     // tweet from re-collapsing until it leaves the DOM or filters change.
     setInterval(function () {
-        if (!compiledFilters.length) return;
+        if (!compiledFilters.length && !llmEnabled) return;
+        let verdicts = llmEnabled ? getVerdicts() : {};
         document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {
             article.setAttribute('data-skrl-checked', '1');
             // Never hide the reading-position marker the scroll loop stops at.
             if (article.querySelector('button[data-testid="removeBookmark"]')) return;
-            let matched = matchFilters(article);
+            let text = tweetText(article);
+            if (!text) return;
+            let matched = matchFilters(text);
             if (matched) {
                 collapseArticle(article, matched);
+                return;
+            }
+            if (!llmEnabled) return;
+            let id = tweetPermalink(article);
+            if (!id) return;
+            if (id in verdicts) {
+                if (verdicts[id]) collapseArticle(article, verdicts[id]);
+            } else if (!pendingById[id]) {
+                pendingById[id] = true;
+                pendingBatch.push({ id: id, text: text });
             }
         });
+        flushPendingBatch();
     }, 1500);
 
     function run_twitter_scroller()

@@ -20,10 +20,18 @@ Tip: to keep your bookmarks tidy, you can remove the previous position bookmark 
 
 ## Filtering noise
 
-You can hide tweets matching a list of regular expressions:
+Tweets can be hidden by two filters, configured in the extension options
+(chrome://extensions → Twitter scroller → Details → Extension options). Filtered tweets collapse
+to a one-line `filtered: …` stub in the feed; click the stub to reveal the tweet. Changes apply
+to the open feed immediately — no reload needed. Your bookmarked position tweet is never hidden.
 
-- Open the extension options (chrome://extensions → Twitter scroller → Details → Extension options).
-- Add one pattern per line (matched case-insensitively against tweet text, e.g. `giveaway` or `crypto ?bro`) and press Save.
-- Matching tweets collapse to a one-line `filtered: /…/` stub in the feed; click the stub to reveal the tweet.
+**Regexp filters** — one pattern per line, matched case-insensitively against tweet text
+(e.g. `giveaway` or `crypto ?bro`). Instant and free; checked first.
 
-Changes apply to the open feed immediately — no reload needed. Your bookmarked position tweet is never hidden.
+**LLM filter (optional)** — tweets that pass the regexps are classified by an LLM via
+[OpenRouter](https://openrouter.ai) against rubrics you write in plain language, one per line as
+`label: what to filter` (e.g. `politics: elections, politicians, geopolitics`). To enable, fill in
+all three fields: your OpenRouter API key, a model (pick a fast cheap one from the list), and at
+least one rubric. Each tweet is classified once and the verdict cached, so cost stays negligible.
+Note: tweet text is sent to OpenRouter and the model's provider. There's a brief moment before a
+noisy tweet collapses while classification is in flight.
