@@ -19,8 +19,8 @@
     // Mobile-tuned: slower than the desktop extension so Twitter's list
     // virtualizer can recycle off-screen tweets before the next step.
     const MAX_SCROLL_ITERATIONS = 80;
-    const MIN_INTERVAL = 1800;
-    const INTERVAL_JITTER = 600; // 1800–2400 ms
+    const CHECK_INTERVAL = 500; // poll for the bookmark this often
+    const SCROLL_EVERY = 4;     // ...and advance the feed every 4th poll (~2s)
 
     // Shared state at module scope — SPA re-init must not create a second copy.
     let intervalId = null;
@@ -95,33 +95,15 @@
 
     function scrollTwitterTimeline() {
         scrollIterations = 0;
+        var tick = 0;
         setScrollingState(true);
         killVideos(); // catch the initial autoplaying tweet immediately
 
         intervalId = setInterval(function () {
-            scrollIterations++;
-            console.log('scrolling (' + scrollIterations + '/' + MAX_SCROLL_ITERATIONS + ')');
-
-            if (scrollIterations >= MAX_SCROLL_ITERATIONS) {
-                console.warn('[Skrl] Max scroll iterations reached (' + MAX_SCROLL_ITERATIONS + '). Stopping.');
-                stopScrolling();
-                return;
-            }
-
-            killVideos();
-
-            // Gentle, instant step of ~one viewport — far lighter on mobile than
-            // jumping to scrollHeight with smooth behavior, and it gives the
-            // virtualizer room to recycle.
-            window.scrollBy({
-                top: Math.round(window.innerHeight * 0.85),
-                behavior: 'auto',
-            });
-
-            killVideos();
-
-            // Bookmarks are the reading-position markers: the first bookmarked
-            // tweet found while scrolling down is the newest one.
+            // Check first, and often: between scroll steps the bookmarked tweet
+            // is rendered and sitting still — that's when we reliably catch it.
+            // Mobile virtualization can evict it fast, so we poll faster than we
+            // scroll instead of checking once per (slow) scroll step.
             var bookmarked = document.querySelector('button[data-testid="removeBookmark"]');
             if (bookmarked) {
                 stopScrolling();
@@ -130,8 +112,29 @@
                 setTimeout(function () {
                     window.scrollBy({ top: -300, behavior: 'smooth' });
                 }, 1000);
+                return;
             }
-        }, MIN_INTERVAL + Math.floor(Math.random() * INTERVAL_JITTER));
+
+            // Advance the feed only every SCROLL_EVERY polls.
+            if (++tick % SCROLL_EVERY !== 0) return;
+
+            scrollIterations++;
+            console.log('scrolling (' + scrollIterations + '/' + MAX_SCROLL_ITERATIONS + ')');
+            if (scrollIterations >= MAX_SCROLL_ITERATIONS) {
+                console.warn('[Skrl] Max scroll iterations reached (' + MAX_SCROLL_ITERATIONS + '). Stopping.');
+                stopScrolling();
+                return;
+            }
+
+            killVideos();
+            // Gentle, instant step of ~one viewport so the bookmarked tweet
+            // passes through the rendered window where a poll can land on it.
+            window.scrollBy({
+                top: Math.round(window.innerHeight * 0.85),
+                behavior: 'auto',
+            });
+            killVideos();
+        }, CHECK_INTERVAL);
     }
 
     // Primary trigger is the button (tap). Keyboard listener kept for desktop

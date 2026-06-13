@@ -7,6 +7,8 @@
     ];
 
     const MAX_SCROLL_ITERATIONS = 60
+    const SCROLL_CHECK_MS = 400 // poll for the bookmark this often
+    const SCROLL_EVERY = 3      // ...and advance the feed every 3rd poll (~1.2s)
 
     // --- #1: Shared state at module scope — SPA re-init must not create a second copy ---
     let intervalId = null
@@ -64,25 +66,12 @@
 
     function scrollTwitterTimeline(){
         scrollIterations = 0 // reset on each start
+        let tick = 0
         setScrollingState(true); // --- #5: visual feedback ---
         intervalId = setInterval(() => {
-            scrollIterations++
-            console.log('scrolling (' + scrollIterations + '/' + MAX_SCROLL_ITERATIONS + ')')
-
-            // --- #4: Auto-stop after limit ---
-            if (scrollIterations >= MAX_SCROLL_ITERATIONS) {
-                console.warn('[Skrl] Max scroll iterations reached (' + MAX_SCROLL_ITERATIONS + '). Stopping.');
-                stopScrolling();
-                return;
-            }
-
-            window.scrollTo({
-                top: document.body.scrollHeight,
-                behavior: 'smooth',
-            });
-
-            // Bookmarks are the reading-position markers: the first bookmarked
-            // tweet found while scrolling down is the newest one.
+            // Check first, and often: between scroll steps the bookmarked tweet
+            // is rendered and sitting still — that's when we reliably catch it.
+            // Jumping to the bottom and checking once per scroll flew right past it.
             let bookmarked = document.querySelector('button[data-testid="removeBookmark"]');
             if (bookmarked) {
                 stopScrolling();
@@ -94,8 +83,30 @@
                         behavior: "smooth",
                     })
                 }, 1000)
+                return;
             }
-        }, 1000 + Math.floor(Math.random() * 200))
+
+            // Advance the feed only every SCROLL_EVERY polls.
+            if (++tick % SCROLL_EVERY !== 0) return;
+
+            scrollIterations++
+            console.log('scrolling (' + scrollIterations + '/' + MAX_SCROLL_ITERATIONS + ')')
+
+            // --- #4: Auto-stop after limit ---
+            if (scrollIterations >= MAX_SCROLL_ITERATIONS) {
+                console.warn('[Skrl] Max scroll iterations reached (' + MAX_SCROLL_ITERATIONS + '). Stopping.');
+                stopScrolling();
+                return;
+            }
+
+            // Step ~one viewport instead of jumping to the bottom, so the
+            // bookmarked tweet passes through the rendered window where a
+            // poll can land on it.
+            window.scrollBy({
+                top: Math.round(window.innerHeight * 0.85),
+                behavior: 'smooth',
+            });
+        }, SCROLL_CHECK_MS)
     }
 
     // --- #1: Document-level listeners registered once; SPA re-init only re-creates the button ---
