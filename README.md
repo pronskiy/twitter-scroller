@@ -18,6 +18,14 @@ It auto-scrolls your X feed down to the spot where you stopped reading last time
 
 Tip: to keep your bookmarks tidy, you can remove the previous position bookmark after setting a new one. Note that if you bookmark tweets you haven't read yet, scrolling will stop at the newest bookmark rather than your actual reading position.
 
+## iPhone / Safari (userscript)
+
+The native X app can't be scripted, so on iOS you read the feed at [x.com](https://x.com) in Safari with a userscript. There's a standalone version in [`userscript/skrl.user.js`](userscript/skrl.user.js) — scroll-to-bookmark only (no noise filters), tuned to be memory-safe on mobile (slower stepping, and it pauses/unloads video so Safari doesn't kill the tab).
+
+- Install the free [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) app from the App Store, then enable it in Settings → Safari → Extensions.
+- Add `userscript/skrl.user.js` in the Userscripts app editor.
+- Open [x.com](https://x.com) in Safari and tap the **Skrl** button to scroll to your newest bookmark, same as the desktop usage above.
+
 ## Filtering noise
 
 Tweets can be hidden by two filters, configured in the extension options
