@@ -123,7 +123,7 @@
         }
     });
 
-    // --- #9: Regexp noise filter — patterns from chrome.storage.sync (edited via options page) ---
+    // --- #9: Regexp noise filter — patterns from config.js (globalThis.SKRL_CONFIG) ---
     let compiledFilters = []
 
     function compileFilters(patterns) {
@@ -139,43 +139,34 @@
 
     // --- #10: LLM noise filter (OpenRouter, via background.js) ---
     const verdict_cache_key = 'ts_llm_verdicts'
+    const verdict_sig_key = 'ts_llm_sig'
     let llmEnabled = false
     let linksOnly = false
     let pendingBatch = []   // [{id, text}] awaiting classification
     let pendingById = {}    // ids already queued or in flight
 
-    function updateLlmEnabled() {
-        chrome.storage.sync.get({ model: '', rubrics: '' }, function (s) {
-            chrome.storage.local.get({ openrouter_key: '' }, function (l) {
-                llmEnabled = Boolean(s.model && s.rubrics.trim() && l.openrouter_key);
-            });
-        });
-    }
+    // Settings come from config.js (globalThis.SKRL_CONFIG), loaded as the first
+    // content script. Edit config.js and reload the extension to apply changes.
+    const CONFIG = globalThis.SKRL_CONFIG || {};
+    compileFilters(CONFIG.filters);
+    linksOnly = Boolean(CONFIG.links_only);
+    llmEnabled = Boolean(CONFIG.model && (CONFIG.rubrics || '').trim() && CONFIG.key);
 
-    chrome.storage.sync.get({ filters: [], links_only: false }, function (items) {
-        compileFilters(items.filters);
-        linksOnly = items.links_only;
-    });
-    updateLlmEnabled();
+    // Universal allow-list — tweets matching any of these are exempt from every
+    // filter pass (checked against tweet text + anchor hrefs).
+    const keepFilters = (CONFIG.keep || []).map(function (p) {
+        try { return new RegExp(p, 'i'); }
+        catch (err) { console.warn('[Skrl] Skipping invalid keep pattern:', p, err.message); return null; }
+    }).filter(Boolean);
 
-    chrome.storage.onChanged.addListener(function (changes, area) {
-        if (area === 'local' && changes.openrouter_key) updateLlmEnabled();
-        if (area !== 'sync') return;
-        if (changes.filters) compileFilters(changes.filters.newValue);
-        if (changes.links_only) linksOnly = changes.links_only.newValue;
-        if (changes.model || changes.rubrics) {
-            updateLlmEnabled();
-            // Rubric or model changes make cached verdicts stale.
+    // No live onChanged anymore — drop cached verdicts when model/rubrics change.
+    (function () {
+        const sig = (CONFIG.model || '') + '\n' + (CONFIG.rubrics || '');
+        if (localStorage.getItem(verdict_sig_key) !== sig) {
             localStorage.removeItem(verdict_cache_key);
+            localStorage.setItem(verdict_sig_key, sig);
         }
-        if (changes.filters || changes.model || changes.rubrics || changes.links_only) {
-            // Re-evaluate the whole feed: release collapsed tweets, clear scan marks.
-            document.querySelectorAll('.skrl-filter-stub').forEach(restoreFiltered);
-            document.querySelectorAll('article[data-skrl-checked]').forEach(function (article) {
-                article.removeAttribute('data-skrl-checked');
-            });
-        }
-    });
+    })();
 
     function tweetText(article) {
         let texts = article.querySelectorAll('div[data-testid="tweetText"]');
@@ -196,6 +187,20 @@
             if (re.test(text)) return re;
         }
         return null;
+    }
+
+    // Universal allow-list: never hide tweets matching `keep` (text + hrefs).
+    function isKept(article, text) {
+        if (!keepFilters.length) return false;
+        const hrefs = Array.prototype.map.call(
+            article.querySelectorAll('a[href]'),
+            function (a) { return a.getAttribute('href') || ''; }
+        ).join(' ');
+        const hay = (text || '') + ' ' + hrefs;
+        for (const re of keepFilters) {
+            if (re.test(hay)) return true;
+        }
+        return false;
     }
 
     function getVerdicts() {
@@ -272,13 +277,15 @@
             article.setAttribute('data-skrl-checked', '1');
             // Never hide the reading-position marker the scroll loop stops at.
             if (article.querySelector('button[data-testid="removeBookmark"]')) return;
+            let text = tweetText(article);
+            // Universal allow-list (e.g. php, github links) — exempt from all passes.
+            if (isKept(article, text)) return;
             // External links and link cards have absolute hrefs; everything
             // internal (mentions, hashtags, permalinks, media) is relative.
             if (linksOnly && !article.querySelector('a[href^="http"]')) {
                 collapseArticle(article, 'no link');
                 return;
             }
-            let text = tweetText(article);
             if (!text) return;
             let matched = matchFilters(text);
             if (matched) {

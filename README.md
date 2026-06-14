@@ -5,9 +5,12 @@ It auto-scrolls your X feed down to the spot where you stopped reading last time
 ## Installation
 
 - Download the repo
+- Copy the settings file: `cp config.example.js config.js` (the extension won't load without it)
 - Go to [chrome://extensions](chrome://extensions)
 - Press Load unpacked
 - Choose the repo folder
+
+All settings (filters, model, rubrics, API key) live in `config.js`, which is gitignored. Edit it and reload the extension to apply changes — there's no options page.
 
 ## Usage
 
@@ -20,29 +23,36 @@ Tip: to keep your bookmarks tidy, you can remove the previous position bookmark 
 
 ## iPhone / Safari (userscript)
 
-The native X app can't be scripted, so on iOS you read the feed at [x.com](https://x.com) in Safari with a userscript. There's a standalone version in [`userscript/skrl.user.js`](userscript/skrl.user.js) — scroll-to-bookmark only (no noise filters), tuned to be memory-safe on mobile (slower stepping, and it pauses/unloads video so Safari doesn't kill the tab).
+The native X app can't be scripted, so on iOS you read the feed at [x.com](https://x.com) in Safari with a userscript. [`userscript/skrl.user.js`](userscript/skrl.user.js) has full parity with the desktop extension — scroll-to-bookmark **and** the noise filters — tuned to be memory-safe on mobile (slower stepping, and it pauses/unloads video so Safari doesn't kill the tab).
 
-- Install the free [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) app from the App Store, then enable it in Settings → Safari → Extensions.
-- Add `userscript/skrl.user.js` in the Userscripts app editor.
-- Open [x.com](https://x.com) in Safari and tap the **Skrl** button to scroll to your newest bookmark, same as the desktop usage above.
+It uses the same `config.js` as the desktop extension: `userscript/sync-ios.sh` bakes your settings into the script and copies it to your iCloud Userscripts folder, which syncs to the iPhone (this is how settings "sync" across your Apple devices).
+
+- Install the free [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) app from the App Store, then enable it in Settings → Safari → Extensions, and point it at your iCloud Userscripts folder.
+- On your Mac, run `./userscript/sync-ios.sh` (needs `config.js`). Re-run it whenever you edit `config.js`.
+- Open [x.com](https://x.com) in Safari and tap the **Skrl** button to scroll to your newest bookmark.
 
 ## Filtering noise
 
-Tweets can be hidden by two filters, configured in the extension options
-(chrome://extensions → Twitter scroller → Details → Extension options). Filtered tweets collapse
-to a one-line `filtered: …` stub in the feed; click the stub to reveal the tweet. Changes apply
-to the open feed immediately — no reload needed. Your bookmarked position tweet is never hidden.
+Tweets can be hidden by three filter passes, all configured in `config.js` (see
+`config.example.js` for the format). Filtered tweets collapse to a one-line `filtered: …` stub in
+the feed; click the stub to reveal the tweet. Your bookmarked position tweet is never hidden.
+After editing `config.js`, reload the extension (desktop) or re-run `sync-ios.sh` (iPhone).
 
-**Links only** — a checkbox that hides every tweet not containing a link (external URL or link
-card). Checked before the other filters.
+**`links_only`** — hides every tweet not containing a link (external URL or link card). Runs
+before the other passes.
 
-**Regexp filters** — one pattern per line, matched case-insensitively against tweet text
-(e.g. `giveaway` or `crypto ?bro`). Instant and free.
+**`filters`** — an array of regexp source strings, matched case-insensitively against tweet text
+(e.g. `"giveaway"` or `"crypto ?bro"`). Instant and free.
 
-**LLM filter (optional)** — tweets that pass the regexps are classified by an LLM via
-[OpenRouter](https://openrouter.ai) against rubrics you write in plain language, one per line as
-`label: what to filter` (e.g. `politics: elections, politicians, geopolitics`). To enable, fill in
-all three fields: your OpenRouter API key, a model (pick a fast cheap one from the list), and at
-least one rubric. Each tweet is classified once and the verdict cached, so cost stays negligible.
-Note: tweet text is sent to OpenRouter and the model's provider. There's a brief moment before a
-noisy tweet collapses while classification is in flight.
+**`keep`** — a universal allow-list of regexp sources, matched against each tweet's text **and** its
+link hrefs. A match exempts the tweet from every filter pass. E.g. `["php", "github"]` keeps any
+PHP-related tweet or GitHub-linked tweet visible even when another filter (like a CJK-language
+pattern) would otherwise hide it.
+
+**`model` + `rubrics` + `key` (optional LLM filter)** — tweets that pass the regexps are classified
+by an LLM via [OpenRouter](https://openrouter.ai) against rubrics you write in plain language, one
+per line as `label: what to filter` (e.g. `politics: elections, politicians, geopolitics`). To
+enable, set all three: your OpenRouter API `key`, a `model` (a fast cheap one), and at least one
+rubric. Each tweet is classified once and the verdict cached, so cost stays negligible. Note:
+tweet text is sent to OpenRouter and the model's provider, and the `key` lives in `config.js`
+(gitignored) — on iPhone it travels through your iCloud.

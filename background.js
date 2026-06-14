@@ -1,3 +1,11 @@
+// Settings live in config.js (globalThis.SKRL_CONFIG); the build copies it into
+// the extension folder. Missing config just disables the LLM filter.
+try {
+    importScripts('config.js');
+} catch (e) {
+    console.warn('[Skrl] config.js missing or invalid:', e && e.message);
+}
+
 chrome.commands.onCommand.addListener(function (command) {
     if (command !== 'scroll') return;
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -30,10 +38,9 @@ function parseRubrics(text) {
 }
 
 async function classify(tweets) {
-    const sync = await chrome.storage.sync.get({ model: '', rubrics: '' });
-    const local = await chrome.storage.local.get({ openrouter_key: '' });
-    const rubrics = parseRubrics(sync.rubrics);
-    if (!sync.model || !rubrics.length || !local.openrouter_key) {
+    const cfg = globalThis.SKRL_CONFIG || {};
+    const rubrics = parseRubrics(cfg.rubrics || '');
+    if (!cfg.model || !rubrics.length || !cfg.key) {
         return { disabled: true };
     }
 
@@ -51,13 +58,13 @@ async function classify(tweets) {
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + local.openrouter_key,
+                'Authorization': 'Bearer ' + cfg.key,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': 'https://github.com/pronskiy/twitter-scroller',
                 'X-Title': 'Twitter Scroller',
             },
             body: JSON.stringify({
-                model: sync.model,
+                model: cfg.model,
                 messages: [
                     { role: 'system', content: system },
                     { role: 'user', content: JSON.stringify(tweets) },
