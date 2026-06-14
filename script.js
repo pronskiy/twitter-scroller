@@ -127,12 +127,13 @@
     let compiledFilters = []
 
     function compileFilters(patterns) {
-        compiledFilters = [];
-        (patterns ?? []).forEach(function (pattern) {
+        compiledFilters = []; // [{ label, re }]
+        const obj = patterns || {};
+        Object.keys(obj).forEach(function (label) {
             try {
-                compiledFilters.push(new RegExp(pattern, 'i'));
+                compiledFilters.push({ label: label, re: new RegExp(obj[label], 'i') });
             } catch (err) {
-                console.warn('[Skrl] Skipping invalid filter pattern:', pattern, err.message);
+                console.warn('[Skrl] Skipping invalid filter "' + label + '":', obj[label], err.message);
             }
         });
     }
@@ -150,7 +151,7 @@
     const CONFIG = globalThis.SKRL_CONFIG || {};
     compileFilters(CONFIG.filters);
     linksOnly = Boolean(CONFIG.links_only);
-    llmEnabled = Boolean(CONFIG.model && (CONFIG.rubrics || '').trim() && CONFIG.key);
+    llmEnabled = Boolean(CONFIG.model && CONFIG.rubrics && Object.keys(CONFIG.rubrics).length && CONFIG.key);
 
     // Universal allow-list — tweets matching any of these are exempt from every
     // filter pass (checked against tweet text + anchor hrefs).
@@ -161,7 +162,7 @@
 
     // No live onChanged anymore — drop cached verdicts when model/rubrics change.
     (function () {
-        const sig = (CONFIG.model || '') + '\n' + (CONFIG.rubrics || '');
+        const sig = (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {});
         if (localStorage.getItem(verdict_sig_key) !== sig) {
             localStorage.removeItem(verdict_cache_key);
             localStorage.setItem(verdict_sig_key, sig);
@@ -181,10 +182,10 @@
         return permalink && permalink.getAttribute('href');
     }
 
-    // Cheap, instant first pass. Returns the matched pattern, or null.
+    // Cheap, instant first pass. Returns the matched filter's label, or null.
     function matchFilters(text) {
-        for (const re of compiledFilters) {
-            if (re.test(text)) return re;
+        for (const f of compiledFilters) {
+            if (f.re.test(text)) return f.label;
         }
         return null;
     }

@@ -41,8 +41,8 @@ After editing `config.js`, reload the extension (desktop) or re-run `sync-ios.sh
 **`links_only`** — hides every tweet not containing a link (external URL or link card). Runs
 before the other passes.
 
-**`filters`** — an array of regexp source strings, matched case-insensitively against tweet text
-(e.g. `"giveaway"` or `"crypto ?bro"`). Instant and free.
+**`filters`** — a `{ label: regexp-source }` object, matched case-insensitively against tweet text
+(e.g. `{ "crypto": "crypto ?bro" }`). The label is what shows on the `filtered: …` stub. Instant and free.
 
 **`keep`** — a universal allow-list of regexp sources, matched against each tweet's text **and** its
 link hrefs. A match exempts the tweet from every filter pass. E.g. `["php", "github"]` keeps any
@@ -50,8 +50,8 @@ PHP-related tweet or GitHub-linked tweet visible even when another filter (like 
 pattern) would otherwise hide it.
 
 **`model` + `rubrics` + `key` (optional LLM filter)** — tweets that pass the regexps are classified
-by an LLM via [OpenRouter](https://openrouter.ai) against rubrics you write in plain language, one
-per line as `label: what to filter` (e.g. `politics: elections, politicians, geopolitics`). To
+by an LLM via [OpenRouter](https://openrouter.ai) against rubrics you write in plain language, as a
+`{ label: what-to-filter }` object (e.g. `{ "politics": "elections, politicians, geopolitics" }`). To
 enable, set all three: your OpenRouter API `key`, a `model` (a fast cheap one), and at least one
 rubric. Each tweet is classified once and the verdict cached, so cost stays negligible. Note:
 tweet text is sent to OpenRouter and the model's provider, and the `key` lives in `config.js`

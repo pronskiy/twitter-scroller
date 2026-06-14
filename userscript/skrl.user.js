@@ -164,19 +164,20 @@
     let pendingById = {};     // ids already queued or in flight
 
     function compileFilters(patterns) {
-        compiledFilters = [];
-        (patterns || []).forEach(function (pattern) {
+        compiledFilters = []; // [{ label, re }]
+        var obj = patterns || {};
+        Object.keys(obj).forEach(function (label) {
             try {
-                compiledFilters.push(new RegExp(pattern, 'i'));
+                compiledFilters.push({ label: label, re: new RegExp(obj[label], 'i') });
             } catch (err) {
-                console.warn('[Skrl] Skipping invalid filter pattern:', pattern, err.message);
+                console.warn('[Skrl] Skipping invalid filter "' + label + '":', obj[label], err.message);
             }
         });
     }
 
     compileFilters(CONFIG.filters);
     const linksOnly = Boolean(CONFIG.links_only);
-    const llmEnabled = Boolean(CONFIG.model && (CONFIG.rubrics || '').trim() && CONFIG.key);
+    const llmEnabled = Boolean(CONFIG.model && CONFIG.rubrics && Object.keys(CONFIG.rubrics).length && CONFIG.key);
 
     // Universal allow-list — tweets matching any of these are exempt from every
     // filter pass (checked against tweet text + anchor hrefs).
@@ -187,7 +188,7 @@
 
     // Drop cached verdicts when model/rubrics change (signature check on load).
     (function () {
-        var sig = (CONFIG.model || '') + '\n' + (CONFIG.rubrics || '');
+        var sig = (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {});
         if (localStorage.getItem(verdict_sig_key) !== sig) {
             localStorage.removeItem(verdict_cache_key);
             localStorage.setItem(verdict_sig_key, sig);
@@ -209,7 +210,7 @@
 
     function matchFilters(text) {
         for (var i = 0; i < compiledFilters.length; i++) {
-            if (compiledFilters[i].test(text)) return compiledFilters[i];
+            if (compiledFilters[i].re.test(text)) return compiledFilters[i].label;
         }
         return null;
     }
@@ -268,16 +269,10 @@
         }
     });
 
-    function parseRubrics(text) {
-        return text.split('\n')
-            .map(function (line) { return line.trim(); })
-            .filter(Boolean)
-            .map(function (line) {
-                var i = line.indexOf(':');
-                return i > 0
-                    ? { label: line.slice(0, i).trim(), description: line.slice(i + 1).trim() }
-                    : { label: line, description: line };
-            });
+    function rubricsList(obj) {
+        return Object.keys(obj || {}).map(function (label) {
+            return { label: label, description: obj[label] };
+        });
     }
 
     // GM.xmlHttpRequest wrapped as a promise (bypasses CORS via @connect).
@@ -300,7 +295,7 @@
     }
 
     async function classify(tweets) {
-        var rubrics = parseRubrics(CONFIG.rubrics || '');
+        var rubrics = rubricsList(CONFIG.rubrics);
         if (!CONFIG.model || !rubrics.length || !CONFIG.key) {
             return { disabled: true };
         }

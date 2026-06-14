@@ -7,9 +7,10 @@
 // the background worker) and the iOS userscript (baked in by userscript/sync-ios.sh).
 // Edit config.js and reload the extension / re-run sync-ios.sh to apply changes.
 globalThis.SKRL_CONFIG = {
-    // Regexp sources, case-insensitive, one string per entry. Matched against
-    // tweet text. Invalid patterns are skipped with a console warning.
-    filters: [],
+    // label: regexp source (case-insensitive). Matched against tweet text;
+    // the label is shown on the "filtered: <label>" stub. Invalid patterns are
+    // skipped with a console warning. e.g. { "crypto": "crypto ?bro" }
+    filters: {},
 
     // Universal allow-list, case-insensitive regexp sources. A tweet matching
     // any of these — against its text AND its link hrefs — is never hidden by
@@ -22,9 +23,10 @@ globalThis.SKRL_CONFIG = {
     // OpenRouter model id, e.g. "openai/gpt-4o-mini". Empty disables the LLM filter.
     model: "",
 
-    // LLM rubrics, one "label: description" per line. Empty disables the LLM filter.
-    // e.g. "politics: elections, politicians, geopolitics"
-    rubrics: "",
+    // LLM rubrics as label: description. The label is the verdict the model
+    // returns and is shown on the "filtered: <label>" stub. Empty disables the
+    // LLM filter. e.g. { "politics": "elections, politicians, geopolitics" }
+    rubrics: {},
 
     // OpenRouter API key. Empty disables the LLM filter.
     key: ""

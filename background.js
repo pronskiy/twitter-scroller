@@ -25,21 +25,15 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return true; // keep the channel open for the async response
 });
 
-function parseRubrics(text) {
-    return text.split('\n')
-        .map(function (line) { return line.trim(); })
-        .filter(Boolean)
-        .map(function (line) {
-            const i = line.indexOf(':');
-            return i > 0
-                ? { label: line.slice(0, i).trim(), description: line.slice(i + 1).trim() }
-                : { label: line, description: line };
-        });
+function rubricsList(obj) {
+    return Object.keys(obj || {}).map(function (label) {
+        return { label: label, description: obj[label] };
+    });
 }
 
 async function classify(tweets) {
     const cfg = globalThis.SKRL_CONFIG || {};
-    const rubrics = parseRubrics(cfg.rubrics || '');
+    const rubrics = rubricsList(cfg.rubrics);
     if (!cfg.model || !rubrics.length || !cfg.key) {
         return { disabled: true };
     }
