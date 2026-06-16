@@ -7,8 +7,8 @@
     ];
 
     const MAX_SCROLL_ITERATIONS = 60
-    const SCROLL_CHECK_MS = 400 // poll for the bookmark this often
-    const SCROLL_EVERY = 3      // ...and advance the feed every 3rd poll (~1.2s)
+    const SCROLL_CHECK_MS = 250 // poll for the bookmark this often
+    const SCROLL_EVERY = 2      // ...and advance the feed every 2nd poll (~0.5s)
 
     // --- #1: Shared state at module scope — SPA re-init must not create a second copy ---
     let intervalId = null
@@ -103,7 +103,7 @@
             // bookmarked tweet passes through the rendered window where a
             // poll can land on it.
             window.scrollBy({
-                top: Math.round(window.innerHeight * 0.85),
+                top: window.innerHeight,
                 behavior: 'smooth',
             });
         }, SCROLL_CHECK_MS)
