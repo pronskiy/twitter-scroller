@@ -269,7 +269,8 @@
                 if (!(t.id in response.verdicts)) return;
                 let verdict = response.verdicts[t.id];
                 cacheVerdict(t.id, verdict);
-                if (verdict) {
+                // The verdict can arrive after navigating away from the feed.
+                if (verdict && location.pathname === '/home') {
                     let anchor = document.querySelector('a[href="' + t.id + '"]');
                     let article = anchor && anchor.closest('article');
                     if (article && article.style.display !== 'none') {
@@ -312,6 +313,9 @@
     // not yet checked. Once a stub is clicked open, the mark keeps the
     // tweet from re-collapsing until it leaves the DOM or filters change.
     setInterval(function () {
+        // Only the home feed — notifications, threads, profiles, search, etc.
+        // are pages you open on purpose.
+        if (location.pathname !== '/home') return;
         if (!compiledFilters.length && !llmEnabled && !linksOnly && !hideKinds.size) return;
         let verdicts = llmEnabled ? getVerdicts() : {};
         document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {

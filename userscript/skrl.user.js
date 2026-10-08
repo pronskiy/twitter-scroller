@@ -6,7 +6,7 @@
 // @run-at       document-end
 // @grant        GM.xmlHttpRequest
 // @connect      openrouter.ai
-// @version      1.3.0
+// @version      1.3.1
 // ==/UserScript==
 
 (function () {
@@ -473,7 +473,8 @@
                 if (!(t.id in response.verdicts)) return;
                 var verdict = response.verdicts[t.id];
                 cacheVerdict(t.id, verdict);
-                if (verdict) {
+                // The verdict can arrive after navigating away from the feed.
+                if (verdict && location.pathname === '/home') {
                     var anchor = document.querySelector('a[href="' + t.id + '"]');
                     var article = anchor && anchor.closest('article');
                     if (article && article.style.display !== 'none') {
@@ -488,6 +489,9 @@
     // yet checked. Once a stub is clicked open, the mark keeps the tweet from
     // re-collapsing until it leaves the DOM.
     setInterval(function () {
+        // Only the home feed — notifications, threads, profiles, search, etc.
+        // are pages you open on purpose.
+        if (location.pathname !== '/home') return;
         if (!compiledFilters.length && !llmEnabled && !linksOnly && !hideKinds.size) return;
         var verdicts = llmEnabled ? getVerdicts() : {};
         document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {

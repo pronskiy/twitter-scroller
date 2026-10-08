@@ -370,6 +370,7 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 | 17 | 2026-10-08 | Switch the default model to `google/gemini-3.5-flash-lite` | Benchmark of 8 cheap models on the 20-tweet sample: verdicts identical to Grok 4.3 in 2 runs, 1.5–1.6 s per batch, ~$0.05 per 1,000 tweets. Newer Gemini 3.8 Flash was slower (12–23 s) and pricier; `openai/gpt-6-luna` was cheapest (~$0.015/1k) but not faster | Roman Pronskiy |
 | 18 | 2026-10-08 | Add structural `hide` filters (reposts, replies, duplicate link cards); they run before `keep` | User picked "reposts, replies, dupes" and "ads & X modules" as remaining noise. Markers confirmed by a live DOM probe (87 tweets: 20 reposts, 2 replies, 1 duplicated card) | Roman Pronskiy |
 | 19 | 2026-10-08 | Don't build `ads` / `suggestions` filters | The probe found no ads and no suggestion modules in the user's feed, so there was no marker to build on | Roman Pronskiy |
+| 20 | 2026-10-08 | Filters run only on `/home` | They were hiding tweets on x.com/notifications. Notifications, threads, profiles, search and bookmarks are pages you open on purpose | Roman Pronskiy |
 
 ---
 

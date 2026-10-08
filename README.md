@@ -33,7 +33,7 @@ It uses the same `config.js` as the desktop extension: `userscript/sync-ios.sh` 
 
 ## Filtering noise
 
-Tweets can be hidden by several filter passes, all configured in `config.js` (see
+Filters only apply to the home feed (x.com/home), never to notifications, threads, profiles, search or bookmarks. Tweets can be hidden by several filter passes, all configured in `config.js` (see
 `config.example.js` for the format). Filtered tweets collapse to a one-line `filtered: …` stub in
 the feed; click the stub to reveal the tweet. Your bookmarked position tweet is never hidden.
 After editing `config.js`, reload the extension (desktop) or re-run `sync-ios.sh` (iPhone).
