@@ -52,7 +52,13 @@ pattern) would otherwise hide it.
 **`model` + `rubrics` + `key` (optional LLM filter)** — tweets that pass the regexps are classified
 by an LLM via [OpenRouter](https://openrouter.ai) against rubrics you write in plain language, as a
 `{ label: what-to-filter }` object (e.g. `{ "politics": "elections, politicians, geopolitics" }`). To
-enable, set all three: your OpenRouter API `key`, a `model` (a fast cheap one), and at least one
-rubric. Each tweet is classified once and the verdict cached, so cost stays negligible. Note:
+enable, set all three: your OpenRouter API `key`, a `model`, and at least one
+rubric. Each tweet is classified once and the verdict cached, so cost stays negligible.
+
+The recommended model is TypeSafe's Jev (`~typesafe/jev-latest`). It isn't a chat LLM: it answers
+which rubric matches with a probability, in roughly 300 ms per tweet and at a fraction of a cent per
+thousand tweets. A tweet is hidden only when that probability reaches `threshold` (default `0.7`),
+and the stub shows it (`filtered: politics 86%`). Raise `threshold` if good tweets get hidden.
+Any other OpenRouter model id (e.g. `x-ai/grok-4.3`) is called through chat completions instead. Note:
 tweet text is sent to OpenRouter and the model's provider, and the `key` lives in `config.js`
 (gitignored) — on iPhone it travels through your iCloud.

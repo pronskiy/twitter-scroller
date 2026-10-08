@@ -160,9 +160,11 @@
         catch (err) { console.warn('[Skrl] Skipping invalid keep pattern:', p, err.message); return null; }
     }).filter(Boolean);
 
-    // No live onChanged anymore — drop cached verdicts when model/rubrics change.
+    // No live onChanged anymore — drop cached verdicts when model/rubrics/threshold
+    // change. v2: verdicts are {label, p} objects instead of label strings.
     (function () {
-        const sig = (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {});
+        const sig = 'v2\n' + (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {})
+            + '\n' + (CONFIG.threshold ?? '');
         if (localStorage.getItem(verdict_sig_key) !== sig) {
             localStorage.removeItem(verdict_cache_key);
             localStorage.setItem(verdict_sig_key, sig);
@@ -208,9 +210,9 @@
         return JSON.parse(localStorage.getItem(verdict_cache_key)) ?? {};
     }
 
-    function cacheVerdict(id, label) {
+    function cacheVerdict(id, verdict) {
         let verdicts = getVerdicts();
-        verdicts[id] = label;
+        verdicts[id] = verdict;
         let keys = Object.keys(verdicts);
         if (keys.length > 1000) {
             keys.slice(0, keys.length - 1000).forEach(function (k) { delete verdicts[k]; });
@@ -229,25 +231,29 @@
             }
             batch.forEach(function (t) {
                 delete pendingById[t.id];
-                let label = response.verdicts[t.id] ?? null;
-                cacheVerdict(t.id, label);
-                if (label) {
+                // Missing ids failed upstream — leave them uncached so they retry.
+                if (!(t.id in response.verdicts)) return;
+                let verdict = response.verdicts[t.id];
+                cacheVerdict(t.id, verdict);
+                if (verdict) {
                     let anchor = document.querySelector('a[href="' + t.id + '"]');
                     let article = anchor && anchor.closest('article');
                     if (article && article.style.display !== 'none') {
-                        collapseArticle(article, label);
+                        collapseArticle(article, verdict.label, verdict.p);
                     }
                 }
             });
         });
     }
 
-    function collapseArticle(article, matched) {
+    // p is the classifier's probability (Jev only) — shown as a percentage.
+    function collapseArticle(article, matched, p) {
         const stub = document.createElement('a')
         stub.setAttribute('href', '#')
         stub.setAttribute('class', 'skrl-filter-stub')
         stub.setAttribute('style', 'display: block; padding: 6px 16px; color: rgb(113, 118, 123); font-size: 13px; text-decoration: none;')
-        stub.textContent = 'filtered: ' + matched + ' — show'
+        const pct = typeof p === 'number' ? ' ' + Math.round(p * 100) + '%' : ''
+        stub.textContent = 'filtered: ' + matched + pct + ' — show'
         article.style.display = 'none';
         article.before(stub)
     }
@@ -297,7 +303,7 @@
             let id = tweetPermalink(article);
             if (!id) return;
             if (id in verdicts) {
-                if (verdicts[id]) collapseArticle(article, verdicts[id]);
+                if (verdicts[id]) collapseArticle(article, verdicts[id].label, verdicts[id].p);
             } else if (!pendingById[id]) {
                 pendingById[id] = true;
                 pendingBatch.push({ id: id, text: text });

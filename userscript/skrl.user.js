@@ -6,7 +6,7 @@
 // @run-at       document-end
 // @grant        GM.xmlHttpRequest
 // @connect      openrouter.ai
-// @version      1.1.0
+// @version      1.2.0
 // ==/UserScript==
 
 (function () {
@@ -186,9 +186,11 @@
         catch (err) { console.warn('[Skrl] Skipping invalid keep pattern:', p, err.message); return null; }
     }).filter(Boolean);
 
-    // Drop cached verdicts when model/rubrics change (signature check on load).
+    // Drop cached verdicts when model/rubrics/threshold change (signature check
+    // on load). v2: verdicts are {label, p} objects instead of label strings.
     (function () {
-        var sig = (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {});
+        var sig = 'v2\n' + (CONFIG.model || '') + '\n' + JSON.stringify(CONFIG.rubrics || {})
+            + '\n' + (CONFIG.threshold != null ? CONFIG.threshold : '');
         if (localStorage.getItem(verdict_sig_key) !== sig) {
             localStorage.removeItem(verdict_cache_key);
             localStorage.setItem(verdict_sig_key, sig);
@@ -233,9 +235,9 @@
         return JSON.parse(localStorage.getItem(verdict_cache_key)) || {};
     }
 
-    function cacheVerdict(id, label) {
+    function cacheVerdict(id, verdict) {
         var verdicts = getVerdicts();
-        verdicts[id] = label;
+        verdicts[id] = verdict;
         var keys = Object.keys(verdicts);
         if (keys.length > 1000) {
             keys.slice(0, keys.length - 1000).forEach(function (k) { delete verdicts[k]; });
@@ -243,12 +245,14 @@
         localStorage.setItem(verdict_cache_key, JSON.stringify(verdicts));
     }
 
-    function collapseArticle(article, matched) {
+    // p is the classifier's probability (Jev only) — shown as a percentage.
+    function collapseArticle(article, matched, p) {
         var stub = document.createElement('a');
         stub.setAttribute('href', '#');
         stub.setAttribute('class', 'skrl-filter-stub');
         stub.setAttribute('style', 'display: block; padding: 6px 16px; color: rgb(113, 118, 123); font-size: 13px; text-decoration: none;');
-        stub.textContent = 'filtered: ' + matched + ' — show';
+        var pct = typeof p === 'number' ? ' ' + Math.round(p * 100) + '%' : '';
+        stub.textContent = 'filtered: ' + matched + pct + ' — show';
         article.style.display = 'none';
         article.before(stub);
     }
@@ -294,12 +298,40 @@
         });
     }
 
+    var JEV_NONE = '_none'; // reserved "no rule matches" option for Jev
+
+    function openRouterHeaders() {
+        return {
+            'Authorization': 'Bearer ' + CONFIG.key,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://github.com/pronskiy/twitter-scroller',
+            'X-Title': 'Twitter Scroller',
+        };
+    }
+
+    // Jev decision models (not typesafe/jev-router, which is a chat router).
+    function isDecisionsModel(model) {
+        return /^~?typesafe\/jev-(latest|\d)/.test(model || '');
+    }
+
+    // Verdicts are {label, p} (p = Jev's probability, null for chat models) or null.
     async function classify(tweets) {
         var rubrics = rubricsList(CONFIG.rubrics);
         if (!CONFIG.model || !rubrics.length || !CONFIG.key) {
             return { disabled: true };
         }
+        try {
+            return isDecisionsModel(CONFIG.model)
+                ? await classifyJev(tweets)
+                : await classifyChat(rubrics, tweets);
+        } catch (err) {
+            console.warn('[Skrl] classify failed:', err.message);
+            return { error: err.message };
+        }
+    }
 
+    // Chat models: one request per batch, the model replies with a JSON array.
+    async function classifyChat(rubrics, tweets) {
         var system = [
             "You filter noise out of the user's X/Twitter feed.",
             'Filter rules (label: what to filter):',
@@ -310,36 +342,68 @@
             'Include every input id exactly once. Use null when no rule clearly matches; when unsure, use null.',
         ].join('\n');
 
-        try {
-            var text = await gmPost('https://openrouter.ai/api/v1/chat/completions', {
-                'Authorization': 'Bearer ' + CONFIG.key,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://github.com/pronskiy/twitter-scroller',
-                'X-Title': 'Twitter Scroller',
-            }, JSON.stringify({
+        var text = await gmPost('https://openrouter.ai/api/v1/chat/completions', openRouterHeaders(), JSON.stringify({
+            model: CONFIG.model,
+            messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: JSON.stringify(tweets) },
+            ],
+        }));
+        var data = JSON.parse(text);
+        var content = (data.choices && data.choices[0] && data.choices[0].message
+            && data.choices[0].message.content) || '';
+        content = content.trim().replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '');
+        var labels = new Set(rubrics.map(function (r) { return r.label; }));
+        var verdicts = {};
+        JSON.parse(content).forEach(function (item) {
+            if (item && typeof item.id === 'string') {
+                // Only trust labels we actually defined — anything else fails open.
+                verdicts[item.id] = labels.has(item.label) ? { label: item.label, p: null } : null;
+            }
+        });
+        return { verdicts: verdicts };
+    }
+
+    // Jev (Decisions API): one typed `choice` question per tweet, answered with
+    // calibrated probabilities. Tweets whose request failed are left out of the
+    // verdicts so they're retried later.
+    async function classifyJev(tweets) {
+        var threshold = typeof CONFIG.threshold === 'number' ? CONFIG.threshold : 0.7;
+        var criteria = Object.assign({}, CONFIG.rubrics);
+        criteria[JEV_NONE] = 'No rule clearly matches.';
+        var results = await Promise.allSettled(tweets.map(async function (t) {
+            var text = await gmPost('https://openrouter.ai/api/alpha/decisions', openRouterHeaders(), JSON.stringify({
                 model: CONFIG.model,
-                messages: [
-                    { role: 'system', content: system },
-                    { role: 'user', content: JSON.stringify(tweets) },
-                ],
+                state: t.text,
+                questions: {
+                    noise: {
+                        type: 'choice',
+                        instructions: 'Which filter rule does this X/Twitter post clearly match? When unsure, pick ' + JEV_NONE + '.',
+                        criteria: criteria,
+                    },
+                },
             }));
             var data = JSON.parse(text);
-            var content = (data.choices && data.choices[0] && data.choices[0].message
-                && data.choices[0].message.content) || '';
-            content = content.trim().replace(/^```(?:json)?\s*/, '').replace(/```\s*$/, '');
-            var labels = new Set(rubrics.map(function (r) { return r.label; }));
-            var verdicts = {};
-            JSON.parse(content).forEach(function (item) {
-                if (item && typeof item.id === 'string') {
-                    // Only trust labels we actually defined — anything else fails open.
-                    verdicts[item.id] = labels.has(item.label) ? item.label : null;
-                }
-            });
-            return { verdicts: verdicts };
-        } catch (err) {
-            console.warn('[Skrl] classify failed:', err.message);
-            return { error: err.message };
-        }
+            return jevVerdict(data.answers && data.answers.noise, threshold);
+        }));
+
+        var verdicts = {};
+        var failure = null;
+        results.forEach(function (r, i) {
+            if (r.status === 'fulfilled') verdicts[tweets[i].id] = r.value;
+            else failure = r.reason;
+        });
+        if (failure && !Object.keys(verdicts).length) throw failure;
+        if (failure) console.warn('[Skrl] some Jev calls failed, will retry:', failure.message);
+        return { verdicts: verdicts };
+    }
+
+    function jevVerdict(answer, threshold) {
+        if (!answer) throw new Error('Jev response has no answer');
+        // _none and labels we didn't define both mean "keep the tweet".
+        if (!Object.prototype.hasOwnProperty.call(CONFIG.rubrics, answer.choice)) return null;
+        var p = (answer.probabilities || {})[answer.choice];
+        return typeof p === 'number' && p >= threshold ? { label: answer.choice, p: p } : null;
     }
 
     function flushPendingBatch() {
@@ -353,13 +417,15 @@
             }
             batch.forEach(function (t) {
                 delete pendingById[t.id];
-                var label = response.verdicts[t.id] || null;
-                cacheVerdict(t.id, label);
-                if (label) {
+                // Missing ids failed upstream — leave them uncached so they retry.
+                if (!(t.id in response.verdicts)) return;
+                var verdict = response.verdicts[t.id];
+                cacheVerdict(t.id, verdict);
+                if (verdict) {
                     var anchor = document.querySelector('a[href="' + t.id + '"]');
                     var article = anchor && anchor.closest('article');
                     if (article && article.style.display !== 'none') {
-                        collapseArticle(article, label);
+                        collapseArticle(article, verdict.label, verdict.p);
                     }
                 }
             });
@@ -395,7 +461,7 @@
             var id = tweetPermalink(article);
             if (!id) return;
             if (id in verdicts) {
-                if (verdicts[id]) collapseArticle(article, verdicts[id]);
+                if (verdicts[id]) collapseArticle(article, verdicts[id].label, verdicts[id].p);
             } else if (!pendingById[id]) {
                 pendingById[id] = true;
                 pendingBatch.push({ id: id, text: text });

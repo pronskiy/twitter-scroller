@@ -20,8 +20,15 @@ globalThis.SKRL_CONFIG = {
     // Hide every tweet that has no external link (runs before the other passes).
     links_only: false,
 
-    // OpenRouter model id, e.g. "openai/gpt-4o-mini". Empty disables the LLM filter.
+    // OpenRouter model id. Empty disables the LLM filter.
+    //   - Jev ("~typesafe/jev-latest" or a pinned "typesafe/jev-1.13") goes
+    //     through the Decisions API: one call per tweet, calibrated probabilities.
+    //   - Any other id (e.g. "x-ai/grok-4.3") goes through chat completions.
     model: "",
+
+    // Jev only: hide a tweet when the matched rule's probability is at least
+    // this (0..1). The stub shows it, e.g. "filtered: politics 86%".
+    threshold: 0.7,
 
     // LLM rubrics as label: description. The label is the verdict the model
     // returns and is shown on the "filtered: <label>" stub. Empty disables the
