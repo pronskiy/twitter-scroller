@@ -9,6 +9,7 @@
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-10-08 | Initial spec created: epics A–C recorded as shipped, Jev backend (D) as current MVP, E–H post-MVP | Roman Pronskiy |
+| 2026-10-08 | Added D2.5/D3.3: retry Jev calls after it was found overloaded (~37% failures) | Roman Pronskiy |
 
 ### Status legend
 
@@ -168,6 +169,7 @@ A 1.5 s poller marks new `article`s and runs the filter passes. Tweets that surv
 | D2.2 | `classifyJev()` — per-tweet parallel requests, threshold | ✅ | 4 tweets in ~0.6 s vs ~6 s on Grok |
 | D2.3 | `{label, p}` verdicts, partial-failure handling, stub percentage in `script.js` | ✅ | |
 | D2.4 | `threshold` config key + cache signature v2 | ✅ | |
+| D2.5 | `jevPost()` retries 429/5xx/network errors (1 s, 3 s backoff) | ✅ | 20/20 classified with 4 retries during an overload |
 
 **Steps (detail):**
 
@@ -197,6 +199,7 @@ A 1.5 s poller marks new `article`s and runs the filter passes. Tweets that surv
 |------|-------------|--------|-------|
 | D3.1 | Port D2.1–D2.4 into `userscript/skrl.user.js` (via `gmPost()`) | ✅ | Verified via Node harness with a GM stub |
 | D3.2 | `sync-ios.sh` and test on iPhone | 🔲 | |
+| D3.3 | Port the retry (`jevPost()`, `gmPost()` errors carry `status`) | ✅ | 18/20 classified with 10 retries; 2 failed open |
 
 **Steps (detail):**
 
@@ -297,6 +300,7 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 | `~typesafe/jev-latest` drifts to a new release under a warm cache | Med | Low | Cache capped at 1000; pin `typesafe/jev-1.13` if verdicts get worse |
 | Jev is weaker on non-English tweets | Med | Med | D1 Russian check passed; regexp `ru politics` filter stays as a first pass |
 | Rate limits when a long feed loads (≤20 req per 1.5 s tick) | Low | Low | ~800 req/min worst case, under the ~1200/min limit; failures retry later |
+| Jev capacity: 10 of 27 calls failed with 503/504/529 (`system_overloaded`) on 2026-10-08 | High | Med | Two retries with backoff per tweet; still-failing tweets stay visible (fail open). Switch `model` to a chat LLM if it persists |
 | API key in `config.js` travels via iCloud on iOS | Low | Med | Documented in README; key is gitignored |
 
 ---
@@ -318,6 +322,8 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 | 11 | 2026-10-08 | Repo stays private; no `SPEC.private.md` | Nothing to keep out of a public repo | Roman Pronskiy |
 | 12 | 2026-10-08 | Post-MVP order: shared core → tests → selector health check → stats | Tests need the shared core to import from | Roman Pronskiy |
 | 13 | 2026-10-08 | Bump `manifest.json` version and userscript `@version` with every commit (0.2 / 1.2.0 for the Jev backend) | Makes each change visible as a new version in Chrome and the Userscripts app | Roman Pronskiy |
+| 14 | 2026-10-08 | Feed focus is AI and tech in general, not PHP: `php` dropped from `keep`; `off-topic` (not AI/tech) and `engagement-bait` rubrics enabled | User's interests shifted; on a 20-tweet sample this hides 10 and keeps every AI/tech tweet | Roman Pronskiy |
+| 15 | 2026-10-08 | Retry Jev calls on 429/5xx/network errors (1 s, then 3 s) before failing open | Without retries, failed tweets stayed unclassified until X re-rendered them | Roman Pronskiy |
 
 ---
 

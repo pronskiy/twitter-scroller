@@ -3,7 +3,7 @@
 
   "name": "Twitter scroller",
   "description": "Scroll to last liked",
-  "version": "0.2",
+  "version": "0.2.1",
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],

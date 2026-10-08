@@ -112,25 +112,17 @@ async function classifyJev(cfg, tweets) {
     const threshold = typeof cfg.threshold === 'number' ? cfg.threshold : 0.7;
     const criteria = Object.assign({}, cfg.rubrics, { [JEV_NONE]: 'No rule clearly matches.' });
     const results = await Promise.allSettled(tweets.map(async function (t) {
-        const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
-            method: 'POST',
-            headers: openRouterHeaders(cfg.key),
-            body: JSON.stringify({
-                model: cfg.model,
-                state: t.text,
-                questions: {
-                    noise: {
-                        type: 'choice',
-                        instructions: 'Which filter rule does this X/Twitter post clearly match? When unsure, pick ' + JEV_NONE + '.',
-                        criteria: criteria,
-                    },
+        const data = await jevPost(cfg.key, JSON.stringify({
+            model: cfg.model,
+            state: t.text,
+            questions: {
+                noise: {
+                    type: 'choice',
+                    instructions: 'Which filter rule does this X/Twitter post clearly match? When unsure, pick ' + JEV_NONE + '.',
+                    criteria: criteria,
                 },
-            }),
-        });
-        if (!res.ok) {
-            throw new Error('OpenRouter HTTP ' + res.status);
-        }
-        const data = await res.json();
+            },
+        }));
         return jevVerdict(data.answers && data.answers.noise, cfg.rubrics, threshold);
     }));
 
@@ -143,6 +135,31 @@ async function classifyJev(cfg, tweets) {
     if (failure && !Object.keys(verdicts).length) throw failure;
     if (failure) console.warn('[Skrl] some Jev calls failed, will retry:', failure.message);
     return { verdicts: verdicts };
+}
+
+// Jev is often overloaded (503/504/529), so retry 429s, 5xx, and network errors
+// with backoff before giving up on a tweet.
+const JEV_RETRY_DELAYS = [1000, 3000];
+
+async function jevPost(key, body) {
+    for (let attempt = 0; ; attempt++) {
+        let res = null;
+        try {
+            res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+                method: 'POST',
+                headers: openRouterHeaders(key),
+                body: body,
+            });
+        } catch (err) {
+            // network error — retryable
+        }
+        if (res && res.ok) return res.json();
+        const retryable = !res || res.status === 429 || res.status >= 500;
+        if (!retryable || attempt >= JEV_RETRY_DELAYS.length) {
+            throw new Error(res ? 'OpenRouter HTTP ' + res.status : 'network error');
+        }
+        await new Promise(function (r) { setTimeout(r, JEV_RETRY_DELAYS[attempt]); });
+    }
 }
 
 function jevVerdict(answer, rubrics, threshold) {

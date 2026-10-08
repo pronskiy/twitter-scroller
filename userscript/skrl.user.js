@@ -6,7 +6,7 @@
 // @run-at       document-end
 // @grant        GM.xmlHttpRequest
 // @connect      openrouter.ai
-// @version      1.2.0
+// @version      1.2.1
 // ==/UserScript==
 
 (function () {
@@ -289,8 +289,10 @@
                 data: body,
                 timeout: 30000,
                 onload: function (res) {
-                    if (res.status >= 200 && res.status < 300) resolve(res.responseText);
-                    else reject(new Error('OpenRouter HTTP ' + res.status));
+                    if (res.status >= 200 && res.status < 300) return resolve(res.responseText);
+                    var err = new Error('OpenRouter HTTP ' + res.status);
+                    err.status = res.status;
+                    reject(err);
                 },
                 onerror: function () { reject(new Error('network error')); },
                 ontimeout: function () { reject(new Error('timeout')); },
@@ -372,7 +374,7 @@
         var criteria = Object.assign({}, CONFIG.rubrics);
         criteria[JEV_NONE] = 'No rule clearly matches.';
         var results = await Promise.allSettled(tweets.map(async function (t) {
-            var text = await gmPost('https://openrouter.ai/api/alpha/decisions', openRouterHeaders(), JSON.stringify({
+            var text = await jevPost(JSON.stringify({
                 model: CONFIG.model,
                 state: t.text,
                 questions: {
@@ -396,6 +398,22 @@
         if (failure && !Object.keys(verdicts).length) throw failure;
         if (failure) console.warn('[Skrl] some Jev calls failed, will retry:', failure.message);
         return { verdicts: verdicts };
+    }
+
+    // Jev is often overloaded (503/504/529), so retry 429s, 5xx, network errors
+    // and timeouts with backoff before giving up on a tweet.
+    var JEV_RETRY_DELAYS = [1000, 3000];
+
+    async function jevPost(body) {
+        for (var attempt = 0; ; attempt++) {
+            try {
+                return await gmPost('https://openrouter.ai/api/alpha/decisions', openRouterHeaders(), body);
+            } catch (err) {
+                var retryable = !err.status || err.status === 429 || err.status >= 500;
+                if (!retryable || attempt >= JEV_RETRY_DELAYS.length) throw err;
+            }
+            await new Promise(function (r) { setTimeout(r, JEV_RETRY_DELAYS[attempt]); });
+        }
     }
 
     function jevVerdict(answer, threshold) {
