@@ -160,6 +160,11 @@
         catch (err) { console.warn('[Skrl] Skipping invalid keep pattern:', p, err.message); return null; }
     }).filter(Boolean);
 
+    // Structural filters — the kind of post, regardless of topic: "reposts",
+    // "replies", "duplicates" (a link card already seen this session).
+    const hideKinds = new Set(CONFIG.hide || []);
+    const seenCards = {};   // card text -> permalink of the first tweet showing it
+
     // No live onChanged anymore — drop cached verdicts when model/rubrics/threshold
     // change. v2: verdicts are {label, p} objects instead of label strings.
     (function () {
@@ -204,6 +209,35 @@
             if (re.test(hay)) return true;
         }
         return false;
+    }
+
+    // Returns the stub label for a structurally filtered tweet, or null.
+    function structuralMatch(article) {
+        if (hideKinds.has('reposts')) {
+            let context = article.querySelector('[data-testid="socialContext"]');
+            if (context && /reposted$/.test(context.innerText.trim())) return 'repost';
+        }
+        if (hideKinds.has('replies') && isReply(article)) return 'reply';
+        if (hideKinds.has('duplicates')) {
+            let card = article.querySelector('[data-testid="card.wrapper"]');
+            let key = card && card.innerText.replace(/\s+/g, ' ').trim().toLowerCase();
+            let id = tweetPermalink(article);
+            if (key && id) {
+                // The first tweet with this card stays visible, even when re-rendered.
+                if (seenCards[key] && seenCards[key] !== id) return 'duplicate';
+                seenCards[key] = id;
+            }
+        }
+        return null;
+    }
+
+    // The "Replying to @user" line X shows above a reply's text.
+    function isReply(article) {
+        return Array.prototype.some.call(article.querySelectorAll('div'), function (d) {
+            // Skip the tweet text and wrappers around it (text can start with "Replying to").
+            return /^\s*Replying to\b/.test(d.textContent) && !d.closest('[data-testid="tweetText"]')
+                && !d.querySelector('[data-testid="tweetText"]');
+        });
     }
 
     function getVerdicts() {
@@ -278,12 +312,19 @@
     // not yet checked. Once a stub is clicked open, the mark keeps the
     // tweet from re-collapsing until it leaves the DOM or filters change.
     setInterval(function () {
-        if (!compiledFilters.length && !llmEnabled && !linksOnly) return;
+        if (!compiledFilters.length && !llmEnabled && !linksOnly && !hideKinds.size) return;
         let verdicts = llmEnabled ? getVerdicts() : {};
         document.querySelectorAll('article:not([data-skrl-checked])').forEach(function (article) {
             article.setAttribute('data-skrl-checked', '1');
             // Never hide the reading-position marker the scroll loop stops at.
             if (article.querySelector('button[data-testid="removeBookmark"]')) return;
+            // Structural filters run before `keep`: they're about the kind of
+            // post (repost, reply, duplicate link), not its topic.
+            let kind = hideKinds.size ? structuralMatch(article) : null;
+            if (kind) {
+                collapseArticle(article, kind);
+                return;
+            }
             let text = tweetText(article);
             // Universal allow-list (e.g. php, github links) — exempt from all passes.
             if (isKept(article, text)) return;

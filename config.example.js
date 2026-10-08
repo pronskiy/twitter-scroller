@@ -20,6 +20,13 @@ globalThis.SKRL_CONFIG = {
     // Hide every tweet that has no external link (runs before the other passes).
     links_only: false,
 
+    // Structural filters, by kind of post rather than topic. Any of:
+    //   "reposts"    — tweets shown because someone you follow reposted them
+    //   "replies"    — replies ("Replying to @…") that show up in the feed
+    //   "duplicates" — a link card already seen earlier this session
+    // They run first (only the bookmarked tweet is exempt, `keep` doesn't apply).
+    hide: [],
+
     // OpenRouter model id. Empty disables the LLM filter.
     //   - Jev ("~typesafe/jev-latest" or a pinned "typesafe/jev-1.13") goes
     //     through the Decisions API: one call per tweet, calibrated probabilities.

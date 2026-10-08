@@ -10,6 +10,7 @@
 |------|--------|--------|
 | 2026-10-08 | Initial spec created: epics A–C recorded as shipped, Jev backend (D) as current MVP, E–H post-MVP | Roman Pronskiy |
 | 2026-10-08 | Added D2.5/D3.3: retry Jev calls after it was found overloaded (~37% failures) | Roman Pronskiy |
+| 2026-10-08 | Added Epic I (structural filters: reposts, replies, duplicates) as the current focus | Roman Pronskiy |
 
 ### Status legend
 
@@ -17,7 +18,7 @@
 
 ### Current focus
 
-**Now on:** Epic D → Phase D2 exit guardrails — live x.com check of Jev stubs and the Grok fallback (needs a human: reload the extension), then D3.2 on the iPhone.
+**Now on:** Epic I → Phase I1 exit guardrails — live x.com check of the repost/reply/duplicate stubs (needs a human: reload the extension). Epic D stays parked on the live Jev checks.
 
 ---
 
@@ -36,9 +37,9 @@ Twitter Scroller brings Tweetbot-style reading back to X: one shortcut scrolls t
 | Settings | One gitignored `config.js` (`globalThis.SKRL_CONFIG`), no options page, no `chrome.storage` | Single source of truth for both runtimes; `sync-ios.sh` bakes it into the userscript |
 | Reading position | X's own bookmarks; stop at the first `removeBookmark` button scrolling down | Persists server-side across devices with no extra account or storage |
 | Scrolling | Poll loop that checks for the bookmark before every ~0.85-viewport step | Never jumps past the bookmark; memory-safe on iOS |
-| Filter pipeline | `keep` → `links_only` → regexp `filters` → AI classifier | Cheap passes first so the paid pass sees only survivors |
+| Filter pipeline | structural `hide` → `keep` → `links_only` → regexp `filters` → AI classifier | Cheap passes first so the paid pass sees only survivors; `hide` judges the kind of post, so `keep` (a topic allow-list) doesn't exempt from it |
 | AI provider | OpenRouter, two backends chosen by model id: chat completions (any LLM) and the Decisions API (Jev) | Keep Grok/LLMs available as a fallback while Jev is in alpha |
-| Default model | `~typesafe/jev-latest` | Calibrated probabilities, ~300 ms, ~$0.00002 per tweet |
+| Default model | `google/gemini-3.5-flash-lite` (chat); Jev stays one `model` change away | Same verdicts as Grok 4.3 on the 20-tweet sample, ~1.6 s vs 6–22 s per batch, ~1/3 the cost |
 | Jev request shape | One request per tweet; `state` = tweet text; one `choice` question over rubrics + reserved `_none` | The documented way to use the API; avoids cross-talk between tweets in a batch |
 | Hiding rule (Jev) | Hide when the top choice is a rubric label and its probability ≥ `threshold` (default 0.7); stub shows the percentage | Turns calibrated output into a tunable precision knob |
 | Verdict cache | `localStorage` `ts_llm_verdicts` (≤1000), invalidated by a signature of format version + model + rubrics + threshold | Each tweet is classified once; config changes take effect on reload |
@@ -226,7 +227,48 @@ A 1.5 s poller marks new `article`s and runs the filter passes. Tweets that surv
 | Guardrail | Criteria (pass/fail) | Status | Actual outcome |
 |-----------|----------------------|--------|----------------|
 | Docs match code | Every config key in `config.example.js` is read by both runtimes | ✅ | `threshold` is read by `background.js`, `script.js` (cache sig), and the userscript |
-| Default switched | Local `config.js` runs `~typesafe/jev-latest` day-to-day | 🔄 | `config.js` switched 2026-10-08; day-to-day use pending |
+| Default switched | Local `config.js` runs `~typesafe/jev-latest` day-to-day | ⏸️ | Switched to Jev, then back to `x-ai/grok-4.3` the same day (decision 16) |
+
+---
+
+### Epic I — Structural filters  ·  MVP (current)
+
+**Goal:** Hide noise by *kind* of post, with no AI cost: reposts, replies that show up in the feed, and the same link shared again.
+**Success metrics:** With `hide: ["reposts", "replies", "duplicates"]`, live-feed stubs read `filtered: repost` / `reply` / `duplicate`. The bookmarked tweet and the first copy of a link stay visible. The probe feed had 20 reposts in 87 tweets (23%).
+
+#### Phase I1 — Probe and build
+
+| Step | Description | Status | Notes |
+|------|-------------|--------|-------|
+| I1.1 | DOM probe of the live feed for markers | ✅ | 87 tweets, see below |
+| I1.2 | `reposts`: `socialContext` text ending in "reposted" | ✅ | |
+| I1.3 | `replies`: "Replying to" line outside the tweet text | ✅ | |
+| I1.4 | `duplicates`: link-card text already seen this session on another permalink | ✅ | First copy survives re-renders |
+| I1.5 | Same pass in the userscript | ✅ | |
+| I1.6 | `hide` documented in `config.example.js`, README, CLAUDE.md | ✅ | |
+| I1.7 | `ads`: promoted posts | ❌ | Probe found none (`placementTracking` = video players only) |
+| I1.8 | `suggestions`: "Who to follow" and topic modules | ❌ | Probe found no rows that weren't tweets |
+
+**Steps (detail):**
+
+- **I1.1 — Probe.** Deliverable: marker counts from the user's real feed (a console snippet that collected while scrolling for 90 s).
+  ```json
+  { "cells": 87, "articles": 87, "other": [], "ads": [], "placement": { "video": 5, "noVideo": 0 },
+    "social": { "reposted": 20 }, "replies": 2, "cards": 8, "duplicatedCards": 1, "quotes": 14 }
+  ```
+- **I1.2–I1.5 — `structuralMatch(article)`.** Deliverable: returns `'repost' | 'reply' | 'duplicate' | null`. It runs in the poller right after the `removeBookmark` exemption and before `isKept()`, and collapses to a stub.
+  ```js
+  const hideKinds = new Set(CONFIG.hide || []);
+  const seenCards = {};   // card text -> permalink of the first tweet showing it
+  ```
+
+**Exit guardrails — Phase I1 done**
+
+| Guardrail | Criteria (pass/fail) | Status | Actual outcome |
+|-----------|----------------------|--------|----------------|
+| Syntax | `node --check` on both runtimes | ✅ | Pass |
+| Runtime load + logic | Both runtimes loaded in jsdom against fake X markup: repost, reply, text starting "Replying to", duplicate card + re-render, bookmarked repost, "Pinned" context | ✅ | All as expected. Caught a missing-semicolon bug in `script.js` (`{}` followed by an IIFE) that `node --check` missed. Fixed |
+| Live feed | Repost/reply/duplicate stubs appear on x.com/home; bookmark tweet visible | 🔲 | |
 
 ---
 
@@ -324,6 +366,10 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 | 13 | 2026-10-08 | Bump `manifest.json` version and userscript `@version` with every commit (0.2 / 1.2.0 for the Jev backend) | Makes each change visible as a new version in Chrome and the Userscripts app | Roman Pronskiy |
 | 14 | 2026-10-08 | Feed focus is AI and tech in general, not PHP: `php` dropped from `keep`; `off-topic` (not AI/tech) and `engagement-bait` rubrics enabled | User's interests shifted; on a 20-tweet sample this hides 10 and keeps every AI/tech tweet | Roman Pronskiy |
 | 15 | 2026-10-08 | Retry Jev calls on 429/5xx/network errors (1 s, then 3 s) before failing open | Without retries, failed tweets stayed unclassified until X re-rendered them | Roman Pronskiy |
+| 16 | 2026-10-08 | Switch the default model back to `x-ai/grok-4.3`; keep the Jev backend in the code | Jev was overloaded at the time (risk register). On the 20-tweet sample, Grok hid 11 and kept every AI/tech tweet | Roman Pronskiy |
+| 17 | 2026-10-08 | Switch the default model to `google/gemini-3.5-flash-lite` | Benchmark of 8 cheap models on the 20-tweet sample: verdicts identical to Grok 4.3 in 2 runs, 1.5–1.6 s per batch, ~$0.05 per 1,000 tweets. Newer Gemini 3.8 Flash was slower (12–23 s) and pricier; `openai/gpt-6-luna` was cheapest (~$0.015/1k) but not faster | Roman Pronskiy |
+| 18 | 2026-10-08 | Add structural `hide` filters (reposts, replies, duplicate link cards); they run before `keep` | User picked "reposts, replies, dupes" and "ads & X modules" as remaining noise. Markers confirmed by a live DOM probe (87 tweets: 20 reposts, 2 replies, 1 duplicated card) | Roman Pronskiy |
+| 19 | 2026-10-08 | Don't build `ads` / `suggestions` filters | The probe found no ads and no suggestion modules in the user's feed, so there was no marker to build on | Roman Pronskiy |
 
 ---
 
@@ -333,6 +379,7 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 - [ ] Should hiding use `probabilities[choice]` or `confidence`? (`confidence` was lower than the probability on the borderline case: 0.36 vs 0.58.)
 - [ ] Is 0.7 the right default threshold after a week of real use?
 - [ ] Does `~typesafe/jev-latest` change verdicts noticeably between releases?
+- [ ] Are quote tweets (14 of 87 in the probe) worth a structural filter, or does the AI pass handle them?
 
 ---
 

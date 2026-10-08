@@ -33,10 +33,15 @@ It uses the same `config.js` as the desktop extension: `userscript/sync-ios.sh` 
 
 ## Filtering noise
 
-Tweets can be hidden by three filter passes, all configured in `config.js` (see
+Tweets can be hidden by several filter passes, all configured in `config.js` (see
 `config.example.js` for the format). Filtered tweets collapse to a one-line `filtered: …` stub in
 the feed; click the stub to reveal the tweet. Your bookmarked position tweet is never hidden.
 After editing `config.js`, reload the extension (desktop) or re-run `sync-ios.sh` (iPhone).
+
+**`hide`** — structural filters by kind of post, rather than topic: `"reposts"`, `"replies"` (replies
+that show up in the feed), and `"duplicates"` (a link card you already saw earlier in the session;
+the first copy stays). E.g. `hide: ["reposts", "replies", "duplicates"]`. Runs before every other
+pass, and `keep` doesn't exempt from it.
 
 **`links_only`** — hides every tweet not containing a link (external URL or link card). Runs
 before the other passes.
@@ -45,7 +50,7 @@ before the other passes.
 (e.g. `{ "crypto": "crypto ?bro" }`). The label is what shows on the `filtered: …` stub. Instant and free.
 
 **`keep`** — a universal allow-list of regexp sources, matched against each tweet's text **and** its
-link hrefs. A match exempts the tweet from every filter pass. E.g. `["php", "github"]` keeps any
+link hrefs. A match exempts the tweet from the content filters (`links_only`, `filters`, the LLM), though not from `hide`. E.g. `["php", "github"]` keeps any
 PHP-related tweet or GitHub-linked tweet visible even when another filter (like a CJK-language
 pattern) would otherwise hide it.
 
