@@ -2,8 +2,8 @@
   "manifest_version": 3,
 
   "name": "Twitter scroller",
-  "description": "Scroll to last liked",
-  "version": "0.3.2",
+  "description": "Scroll the X feed to your newest bookmark and collapse noisy tweets",
+  "version": "0.3.3",
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
@@ -21,7 +21,7 @@
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Scroll twitter feed until liked found"
+      "description": "Scroll the feed to the newest bookmarked tweet"
     }
   }
 }

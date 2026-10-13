@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the iOS userscript by baking the repo's config.js into it, then copy it
 # into the iCloud Drive folder the Userscripts app reads (which syncs it to the
-# iPhone). Also removes the old crashing script / leftover zip.
+# iPhone).
 #
 # Usage: ./userscript/sync-ios.sh
 # Override the destination with: USERSCRIPTS_DIR=/path ./userscript/sync-ios.sh
@@ -23,9 +23,6 @@ if [ ! -d "$DEST" ]; then
     echo "Set USERSCRIPTS_DIR to your Userscripts folder and retry." >&2
     exit 1
 fi
-
-# Remove the previous (crashing) version and the stale package, if present.
-rm -f "$DEST/Twitter Scroller.user.js" "$DEST/twitter-scroller.zip"
 
 # Bake config.js into the userscript at the /* __CONFIG__ */ marker line.
 awk -v cfg="$CONFIG" '

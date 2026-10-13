@@ -11,6 +11,7 @@
 | 2026-10-08 | Initial spec created: epics A–C recorded as shipped, Jev backend (D) as current MVP, E–H post-MVP | Roman Pronskiy |
 | 2026-10-08 | Added D2.5/D3.3: retry Jev calls after it was found overloaded (~37% failures) | Roman Pronskiy |
 | 2026-10-08 | Added Epic I (structural filters: reposts, replies, duplicates) as the current focus | Roman Pronskiy |
+| 2026-10-13 | Repo prepared for public release (decision 21) | Roman Pronskiy |
 
 ### Status legend
 
@@ -371,6 +372,7 @@ Risk: an empty or slow-loading feed could look like broken selectors, so it need
 | 18 | 2026-10-08 | Add structural `hide` filters (reposts, replies, duplicate link cards); they run before `keep` | User picked "reposts, replies, dupes" and "ads & X modules" as remaining noise. Markers confirmed by a live DOM probe (87 tweets: 20 reposts, 2 replies, 1 duplicated card) | Roman Pronskiy |
 | 19 | 2026-10-08 | Don't build `ads` / `suggestions` filters | The probe found no ads and no suggestion modules in the user's feed, so there was no marker to build on | Roman Pronskiy |
 | 20 | 2026-10-08 | Filters run only on `/home` | They were hiding tweets on x.com/notifications. Notifications, threads, profiles, search and bookmarks are pages you open on purpose | Roman Pronskiy |
+| 21 | 2026-10-13 | Make the repo public under MIT; keep SPEC.md and CLAUDE.md in it (reverses 11) | History audit found no committed secrets (`config.js` was never tracked). `config.example.js` ships the author's filters and rubrics, with an empty `key` | Roman Pronskiy |
 
 ---
 

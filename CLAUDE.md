@@ -30,6 +30,7 @@ settings into the userscript.
 - `userscript/skrl.user.js` — iOS Safari userscript (Userscripts app). Standalone port of the same behavior: scroll-to-bookmark, video-unloading for memory safety, and the noise filter. The LLM pass calls OpenRouter directly via `GM.xmlHttpRequest` (`@grant GM.xmlHttpRequest`, `@connect openrouter.ai`) — no background relay. Contains a `/* __CONFIG__ */` marker where the build injects `config.js`.
 - `userscript/sync-ios.sh` — Build+sync: splices `config.js` into the `/* __CONFIG__ */` marker (via `awk`) and writes the result to the iCloud Userscripts folder (`~/Library/Mobile Documents/com~apple~CloudDocs/Userscripts`), which syncs to the iPhone. Overridable with `USERSCRIPTS_DIR`.
 - `README.md` — User-facing install/usage docs (desktop + iPhone).
+- `LICENSE` — MIT. The repo is public: never commit `config.js`, keys, or personal paths.
 - `SPEC.md` — Living build plan: epics, phase trackers, guardrails, decision log.
 
 ## Development

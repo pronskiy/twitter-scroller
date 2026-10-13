@@ -1,4 +1,6 @@
-Chrome extension to "emulate" Tweetbot feed behavior.
+# Twitter Scroller
+
+Chrome extension (and iOS Safari userscript) to "emulate" Tweetbot feed behavior.
 
 It auto-scrolls your X feed down to the spot where you stopped reading last time, so you can read upward into the newer tweets. Your reading position is marked with X's own bookmarks — no extra accounts, no extension storage.
 
@@ -10,7 +12,7 @@ It auto-scrolls your X feed down to the spot where you stopped reading last time
 - Press Load unpacked
 - Choose the repo folder
 
-All settings (filters, model, rubrics, API key) live in `config.js`, which is gitignored. Edit it and reload the extension to apply changes — there's no options page.
+All settings (filters, model, rubrics, API key) live in `config.js`, which is gitignored. The example ships the author's own filters and rubrics; trim them to taste. Edit it and reload the extension to apply changes — there's no options page.
 
 ## Usage
 
@@ -67,3 +69,7 @@ and the stub shows it (`filtered: politics 86%`). Raise `threshold` if good twee
 Any other OpenRouter model id (e.g. `x-ai/grok-4.3`) is called through chat completions instead. Note:
 tweet text is sent to OpenRouter and the model's provider, and the `key` lives in `config.js`
 (gitignored) — on iPhone it travels through your iCloud.
+
+## License
+
+[MIT](LICENSE)

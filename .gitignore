@@ -1,2 +1,5 @@
 /.playwright-mcp/
 /config.js
+/.claude/settings.local.json
+.idea/
+.DS_Store
