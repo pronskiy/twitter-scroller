@@ -6,7 +6,7 @@
 // @run-at       document-end
 // @grant        GM.xmlHttpRequest
 // @connect      openrouter.ai
-// @version      1.3.1
+// @version      1.3.2
 // ==/UserScript==
 
 (function () {
